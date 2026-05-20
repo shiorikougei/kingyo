@@ -1443,7 +1443,7 @@ function updateSalesTotal() {
   const totalEl = document.getElementById('bx_salesTotal');
   if (totalEl) totalEl.value = '¥' + (d1 + d2).toLocaleString('ja-JP');
 }
-async function importSalesReports() {
+async function importSalesReports(forceAll) {
   showSyncStatus('loading');
   try {
     const res = await fetch('https://api.jsonbin.io/v3/b/' + SUBMISSIONS_BIN_ID + '/latest?t=' + Date.now(), {
@@ -1452,11 +1452,20 @@ async function importSalesReports() {
     if (!res.ok) throw new Error('読み込み失敗 ' + res.status);
     const data = await res.json();
     const rec = data.record || {};
-    const submissions = Array.isArray(rec.submissions) ? rec.submissions : [];
+    const allSubs = Array.isArray(rec.submissions) ? rec.submissions : [];
     showSyncStatus('synced');
-    if (submissions.length === 0) { toast('まだ売上報告は届いていません'); return; }
+    if (allSubs.length === 0) { toast('まだ売上報告は届いていません'); return; }
+    const since = state.settings.lastSalesImport || '';
+    const subs = forceAll ? allSubs : allSubs.filter(function(s) { return String(s.submittedAt||'') > since; });
+    if (subs.length === 0) {
+      let h = '<button class="modal-close" onclick="closeModal()">×</button><h3>📥 売上取り込み</h3>';
+      h += '<p style="font-size:13px;color:#555">前回の取り込み以降、新しい売上報告は届いていません。</p>';
+      h += '<div class="form-actions"><button class="btn ghost" onclick="importSalesReports(true)">全' + allSubs.length + '件を取り込み直す</button><button class="btn secondary" onclick="closeModal()">閉じる</button></div>';
+      showModal(h);
+      return;
+    }
     const latest = {};
-    submissions.forEach(function(s) {
+    subs.forEach(function(s) {
       const bid = String(s.boothId || '').trim();
       if (!bid) return;
       if (!latest[bid] || String(s.submittedAt||'') > String(latest[bid].submittedAt||'')) latest[bid] = s;
@@ -1474,10 +1483,11 @@ async function importSalesReports() {
         unmatched.push(bid);
       }
     });
+    state.settings.lastSalesImport = new Date().toISOString();
     saveState();
     renderExhibitors();
     let html = '<button class="modal-close" onclick="closeModal()">×</button><h3>📥 売上取り込み結果</h3>';
-    html += '<p style="font-size:13px;color:#555">' + imported.length + '件のブースに売上を反映しました。</p>';
+    html += '<p style="font-size:13px;color:#555">' + imported.length + '件のブースに売上を反映しました' + (forceAll ? '（全件取り込み直し）' : '（新着分のみ）') + '。</p>';
     if (imported.length) {
       html += '<table class="data-table"><thead><tr><th>ブース</th><th class="num">1日目</th><th class="num">2日目</th><th class="num">合計</th></tr></thead><tbody>';
       html += imported.map(function(r) {
