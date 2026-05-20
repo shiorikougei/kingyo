@@ -1,0 +1,2150 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>金魚祭り 運営管理</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  background: #FFFAF0;
+  color: #2C3E50;
+  line-height: 1.6;
+  font-size: 14px;
+}
+header.app-header {
+  background: linear-gradient(135deg, #D63031 0%, #E17055 100%);
+  color: white;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+header.app-header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+header.app-header h1::before { content: "🎏"; font-size: 24px; }
+header .header-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+  opacity: 0.95;
+}
+header .countdown {
+  background: rgba(255,255,255,0.18);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+nav.tabs {
+  display: flex;
+  background: white;
+  border-bottom: 1px solid #E8E0D5;
+  padding: 0 16px;
+  gap: 4px;
+  overflow-x: auto;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+nav.tabs button {
+  background: none;
+  border: none;
+  padding: 14px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6B6B6B;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+nav.tabs button:hover { color: #D63031; }
+nav.tabs button.active {
+  color: #D63031;
+  border-bottom-color: #D63031;
+  font-weight: 700;
+}
+main { padding: 20px 24px 60px; max-width: 1400px; margin: 0 auto; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+h2.section-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #2C3E50;
+}
+h2.section-title::before {
+  content: "";
+  width: 4px;
+  height: 18px;
+  background: #D63031;
+  border-radius: 2px;
+}
+h3 { font-size: 15px; font-weight: 600; margin: 14px 0 8px; color: #34495E; }
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.card {
+  background: white;
+  border: 1px solid #E8E0D5;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.card .label { font-size: 12px; color: #888; margin-bottom: 6px; }
+.card .value { font-size: 24px; font-weight: 700; color: #2C3E50; }
+.card .sub { font-size: 12px; color: #999; margin-top: 4px; }
+.card.accent { border-top: 3px solid #D63031; }
+.card.gold { border-top: 3px solid #F39C12; }
+.card.blue { border-top: 3px solid #2980B9; }
+.card.green { border-top: 3px solid #27AE60; }
+
+.panel {
+  background: white;
+  border: 1px solid #E8E0D5;
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+button.btn {
+  background: #D63031;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+button.btn:hover { opacity: 0.88; }
+button.btn.secondary { background: #95A5A6; }
+button.btn.ghost { background: white; color: #D63031; border: 1px solid #D63031; }
+button.btn.gold { background: #F39C12; }
+button.btn.small { padding: 5px 10px; font-size: 12px; }
+button.btn.danger { background: #E74C3C; }
+
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  font-size: 13px;
+}
+table.data-table th, table.data-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #F0EAE0;
+  vertical-align: middle;
+}
+table.data-table th {
+  background: #FAF6EE;
+  font-weight: 600;
+  color: #555;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+table.data-table tr:hover td { background: #FFFCF5; }
+table.data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.status-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.status-未連絡 { background: #ECF0F1; color: #7F8C8D; }
+.status-連絡中, .status-交渉中 { background: #FEF5E7; color: #B7950B; }
+.status-確定 { background: #D5F5E3; color: #1E8449; }
+.status-辞退 { background: #FADBD8; color: #C0392B; }
+.status-完了 { background: #D6EAF8; color: #1B4F72; }
+.status-未着手 { background: #ECF0F1; color: #7F8C8D; }
+.status-進行中 { background: #FEF5E7; color: #B7950B; }
+
+.priority-高 { color: #C0392B; font-weight: 700; }
+.priority-中 { color: #B7950B; font-weight: 600; }
+.priority-低 { color: #7F8C8D; }
+
+.form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.form-row label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #555; font-weight: 600; }
+.form-row input, .form-row select, .form-row textarea {
+  padding: 8px 10px;
+  border: 1px solid #D5D5D5;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  background: white;
+}
+.form-row textarea { min-height: 60px; resize: vertical; }
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+  outline: none;
+  border-color: #D63031;
+  box-shadow: 0 0 0 2px rgba(214,48,49,0.12);
+}
+.form-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.form-row.full { grid-column: 1 / -1; }
+
+.toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+.toolbar select, .toolbar input {
+  padding: 6px 10px;
+  border: 1px solid #D5D5D5;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.toolbar input.search { min-width: 220px; }
+.spacer { flex: 1; }
+
+.booth-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.booth {
+  background: white;
+  border: 1px solid #E8E0D5;
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-left: 4px solid #BDC3C7;
+}
+.booth:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.booth.has-data { border-left-color: #27AE60; background: #F4FBF7; }
+.booth.has-data.確定 { border-left-color: #27AE60; }
+.booth.has-data.交渉中 { border-left-color: #F39C12; background: #FFFAEC; }
+.booth.has-data.辞退 { border-left-color: #95A5A6; background: #F5F5F5; opacity: 0.7; }
+.booth .booth-id { font-weight: 700; font-size: 13px; color: #2C3E50; }
+.booth .booth-name { font-size: 12px; color: #666; margin-top: 4px; min-height: 16px; }
+.booth .booth-fee { font-size: 11px; color: #999; margin-top: 4px; }
+
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  padding: 20px;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+  background: white;
+  border-radius: 12px;
+  max-width: 700px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+}
+.modal h3 { margin-top: 0; font-size: 18px; margin-bottom: 16px; }
+.modal-close { float: right; background: none; border: none; font-size: 22px; cursor: pointer; color: #888; line-height: 1; }
+
+.template-bar {
+  background: #FFF8E7;
+  border: 1px solid #F5E6A8;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.template-bar .label { font-size: 12px; font-weight: 700; color: #8B6F00; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.template-bar .label::before { content: "💬"; }
+.template-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.template-chip {
+  background: white;
+  border: 1px solid #E8E0D5;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.template-chip:hover { background: #F39C12; color: white; border-color: #F39C12; }
+
+.meeting-card {
+  background: white;
+  border: 1px solid #E8E0D5;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border-left: 4px solid #2980B9;
+}
+.meeting-card .meeting-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+.meeting-card .meeting-date { font-weight: 700; font-size: 15px; color: #2C3E50; }
+.meeting-card .meeting-attendees { font-size: 12px; color: #666; margin-bottom: 8px; }
+.meeting-card .meeting-section { margin-top: 10px; }
+.meeting-card .meeting-section h4 { font-size: 12px; color: #888; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+.meeting-card .meeting-section .content { font-size: 13px; white-space: pre-wrap; }
+
+.empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+  font-size: 13px;
+}
+
+.budget-bar {
+  background: #F0EAE0;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.budget-bar .fill { height: 100%; background: linear-gradient(90deg, #27AE60, #F39C12); transition: width 0.3s; }
+.budget-bar.over .fill { background: #E74C3C; }
+
+.legend { display: flex; gap: 12px; font-size: 11px; color: #666; flex-wrap: wrap; margin-bottom: 12px; }
+.legend .item { display: flex; align-items: center; gap: 4px; }
+.legend .dot { width: 10px; height: 10px; border-radius: 2px; }
+
+details { background: white; border: 1px solid #E8E0D5; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; }
+details summary { cursor: pointer; font-weight: 600; color: #2C3E50; }
+details[open] summary { margin-bottom: 10px; }
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #2C3E50;
+  color: white;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.25s;
+  z-index: 200;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+
+@media (max-width: 680px) {
+  main { padding: 14px; }
+  header.app-header h1 { font-size: 17px; }
+  .cards { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ==== Login Screen ==== */
+.login-screen {
+  position: fixed; inset: 0;
+  background: linear-gradient(135deg, #D63031 0%, #E17055 100%);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999;
+  font-family: inherit;
+  padding: 20px;
+}
+.login-screen.hidden { display: none; }
+.login-card {
+  background: white;
+  color: #2C3E50;
+  padding: 40px 32px;
+  border-radius: 16px;
+  text-align: center;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.22);
+}
+.login-card .emoji { font-size: 44px; margin-bottom: 4px; }
+.login-card h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; color: #2C3E50; }
+.login-card .subtitle { font-size: 12px; color: #999; margin-bottom: 22px; }
+.login-card input {
+  width: 100%;
+  padding: 13px 14px;
+  font-size: 15px;
+  border: 1.5px solid #E0E0E0;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  font-family: inherit;
+  text-align: center;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.login-card input:focus {
+  outline: none;
+  border-color: #D63031;
+  box-shadow: 0 0 0 3px rgba(214,48,49,0.12);
+}
+.login-card button {
+  width: 100%;
+  background: #D63031;
+  color: white;
+  border: none;
+  padding: 13px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+.login-card button:hover { opacity: 0.9; }
+.login-card button:disabled { opacity: 0.5; cursor: not-allowed; }
+.login-error {
+  color: #C0392B;
+  font-size: 13px;
+  margin-top: 12px;
+  min-height: 18px;
+}
+
+/* ==== Sync indicator ==== */
+.sync-indicator {
+  font-size: 11px;
+  background: rgba(255,255,255,0.18);
+  padding: 5px 11px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  opacity: 0;
+  transition: opacity 0.25s;
+  white-space: nowrap;
+}
+.sync-indicator.show { opacity: 1; }
+.sync-indicator.error { background: rgba(192,57,43,0.5); }
+.sync-indicator .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #2ECC71;
+}
+.sync-indicator.saving .dot { background: #F39C12; animation: pulse 1s infinite; }
+.sync-indicator.error .dot { background: #E74C3C; }
+@keyframes pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="emoji">🎏</div>
+    <h1>金魚祭り 運営管理</h1>
+    <div class="subtitle">実行委員会限定</div>
+    <input type="password" id="loginPassword" placeholder="合言葉" autofocus onkeydown="if(event.key==='Enter')doLogin()">
+    <button id="loginBtn" onclick="doLogin()">開く</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<header class="app-header">
+  <h1>金魚祭り 運営管理</h1>
+  <div class="header-meta">
+    <div class="countdown" id="countdown">開催日を設定</div>
+    <span id="syncStatus" class="sync-indicator"><span class="dot"></span><span class="text">同期</span></span>
+    <button class="btn ghost small" onclick="refreshFromServer()" title="最新データを再読み込み">🔄</button>
+    <button class="btn ghost small" onclick="openSettings()">⚙ 設定</button>
+    <button class="btn small" onclick="exportAll()">📥 保存</button>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="dashboard" class="active">🏠 全体</button>
+  <button data-tab="accounting">💰 会計</button>
+  <button data-tab="performers">🎤 出演者</button>
+  <button data-tab="exhibitors">🏮 出展者</button>
+  <button data-tab="sponsors">🤝 協賛</button>
+  <button data-tab="staff">👥 スタッフ</button>
+  <button data-tab="tasks">✅ タスク</button>
+  <button data-tab="meetings">📋 議事録</button>
+</nav>
+
+<main>
+
+<!-- ============ DASHBOARD ============ -->
+<section class="tab-panel active" id="tab-dashboard">
+  <h2 class="section-title">全体ダッシュボード</h2>
+  <div class="cards" id="dashboardCards"></div>
+
+  <div class="panel">
+    <h3>📊 予算消化状況</h3>
+    <div style="max-width: 800px;"><canvas id="budgetChart" height="160"></canvas></div>
+  </div>
+
+  <div class="cards" style="grid-template-columns: 1fr 1fr;">
+    <div class="panel">
+      <h3>⏰ 直近の予定・締切</h3>
+      <div id="upcomingList"></div>
+    </div>
+    <div class="panel">
+      <h3>📌 進行中のタスク（優先度順）</h3>
+      <div id="topTasksList"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ACCOUNTING ============ -->
+<section class="tab-panel" id="tab-accounting">
+  <h2 class="section-title">会計</h2>
+
+  <div class="cards">
+    <div class="card accent"><div class="label">予算（収入）</div><div class="value" id="acIncomeBudget">¥0</div></div>
+    <div class="card gold"><div class="label">実績（収入）</div><div class="value" id="acIncomeActual">¥0</div></div>
+    <div class="card blue"><div class="label">予算（支出）</div><div class="value" id="acExpenseBudget">¥0</div></div>
+    <div class="card green"><div class="label">実績（支出）</div><div class="value" id="acExpenseActual">¥0</div></div>
+  </div>
+
+  <div class="panel">
+    <h3>収入：予算 vs 実績</h3>
+    <table class="data-table" id="incomeTable"></table>
+  </div>
+
+  <div class="panel">
+    <h3>支出：予算 vs 実績</h3>
+    <table class="data-table" id="expenseTable"></table>
+  </div>
+
+  <div class="panel">
+    <h3>支出を1件追加</h3>
+    <div class="form-row">
+      <label>支払日<input type="date" id="exDate"></label>
+      <label>支払先<input type="text" id="exVendor" placeholder="例：ココス"></label>
+      <label>費目<select id="exCategory"></select></label>
+      <label>金額<input type="number" id="exAmount" placeholder="0"></label>
+      <label>支払方法
+        <select id="exMethod">
+          <option>現金</option><option>クレジットカード</option><option>銀行振込</option><option>その他</option>
+        </select>
+      </label>
+      <label class="full">メモ<input type="text" id="exNote" placeholder="領収書の保管先など"></label>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="addExpense()">+ 追加</button>
+      <button class="btn secondary" onclick="clearExpenseForm()">クリア</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>記録した支出（アプリ内）</h3>
+    <table class="data-table" id="expenseLogTable"></table>
+  </div>
+</section>
+
+<!-- ============ PERFORMERS ============ -->
+<section class="tab-panel" id="tab-performers">
+  <h2 class="section-title">出演者管理</h2>
+
+  <div class="template-bar">
+    <div class="label">LINE送信テンプレ（クリック → 送信先を選んで送る）</div>
+    <div class="template-chips">
+      <span class="template-chip" onclick="openSendModal('performer',{presetTemplate:'出演依頼'})">📨 出演依頼</span>
+      <span class="template-chip" onclick="openSendModal('performer',{presetTemplate:'スケジュール確認'})">📅 スケジュール確認</span>
+      <span class="template-chip" onclick="openSendModal('performer',{presetTemplate:'リマインダー'})">🔔 前日リマインド</span>
+      <span class="template-chip" onclick="openSendModal('performer',{presetTemplate:'お礼'})">🙏 出演後お礼</span>
+      <span class="template-chip" style="background:#D63031;color:white;border-color:#D63031" onclick="openSendModal('performer')">📢 送信先を選んで送る</span>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <select id="perfFilterStatus" onchange="renderPerformers()">
+      <option value="">すべての状態</option>
+      <option>未連絡</option><option>交渉中</option><option>確定</option><option>辞退</option><option>完了</option>
+    </select>
+    <input class="search" id="perfSearch" placeholder="名前・内容で検索..." oninput="renderPerformers()">
+    <div class="spacer"></div>
+    <button class="btn" onclick="openPerformerEdit()">+ 出演者を追加</button>
+  </div>
+
+  <div class="panel" style="padding: 0;">
+    <table class="data-table" id="performersTable"></table>
+  </div>
+</section>
+
+<!-- ============ EXHIBITORS ============ -->
+<section class="tab-panel" id="tab-exhibitors">
+  <h2 class="section-title">出展者管理（ブースB01〜B30）</h2>
+
+  <div class="template-bar">
+    <div class="label">LINE送信テンプレ（クリック → 送信先を選んで送る）</div>
+    <div class="template-chips">
+      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'出展募集'})">📨 出展募集</span>
+      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'出展確定通知'})">✅ 出展確定通知</span>
+      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'搬入案内'})">🚛 搬入案内</span>
+      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'売上報告依頼'})">📊 売上報告依頼</span>
+      <span class="template-chip" style="background:#D63031;color:white;border-color:#D63031" onclick="openSendModal('exhibitor')">📢 送信先を選んで送る</span>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="item"><span class="dot" style="background:#BDC3C7"></span>空き</span>
+    <span class="item"><span class="dot" style="background:#F39C12"></span>交渉中</span>
+    <span class="item"><span class="dot" style="background:#27AE60"></span>確定</span>
+    <span class="item"><span class="dot" style="background:#95A5A6"></span>辞退</span>
+  </div>
+
+  <div class="panel">
+    <h3>ブース配置（クリックで編集）</h3>
+    <div class="booth-grid" id="boothGrid"></div>
+  </div>
+
+  <div class="cards">
+    <div class="card accent"><div class="label">確定ブース数</div><div class="value" id="exConfirmed">0</div><div class="sub">/ 30</div></div>
+    <div class="card gold"><div class="label">交渉中</div><div class="value" id="exNegotiating">0</div></div>
+    <div class="card blue"><div class="label">出展料収入見込</div><div class="value" id="exFeeExpected">¥0</div></div>
+    <div class="card green"><div class="label">売上歩合見込</div><div class="value" id="exCommissionExpected">¥0</div></div>
+  </div>
+</section>
+
+<!-- ============ SPONSORS ============ -->
+<section class="tab-panel" id="tab-sponsors">
+  <h2 class="section-title">協賛管理</h2>
+
+  <div class="toolbar">
+    <select id="spoFilter" onchange="renderSponsors()">
+      <option value="">すべて</option>
+      <option>未連絡</option><option>交渉中</option><option>確定</option><option>入金済</option><option>辞退</option>
+    </select>
+    <input class="search" id="spoSearch" placeholder="企業名で検索..." oninput="renderSponsors()">
+    <div class="spacer"></div>
+    <button class="btn" onclick="openSponsorEdit()">+ 協賛先を追加</button>
+  </div>
+
+  <div class="cards">
+    <div class="card accent"><div class="label">協賛金額目標</div><div class="value">¥600,000</div></div>
+    <div class="card gold"><div class="label">確定済</div><div class="value" id="spoConfirmedAmount">¥0</div></div>
+    <div class="card green"><div class="label">入金済</div><div class="value" id="spoPaidAmount">¥0</div></div>
+  </div>
+
+  <div class="panel" style="padding: 0;">
+    <table class="data-table" id="sponsorsTable"></table>
+  </div>
+</section>
+
+<!-- ============ STAFF ============ -->
+<section class="tab-panel" id="tab-staff">
+  <h2 class="section-title">スタッフ管理</h2>
+
+  <div class="toolbar">
+    <select id="staffFilter" onchange="renderStaff()">
+      <option value="">すべての役割</option>
+    </select>
+    <input class="search" id="staffSearch" placeholder="名前で検索..." oninput="renderStaff()">
+    <div class="spacer"></div>
+    <button class="btn" onclick="openStaffEdit()">+ スタッフを追加</button>
+  </div>
+
+  <div class="panel" style="padding: 0;">
+    <table class="data-table" id="staffTable"></table>
+  </div>
+</section>
+
+<!-- ============ TASKS ============ -->
+<section class="tab-panel" id="tab-tasks">
+  <h2 class="section-title">タスク・Todo</h2>
+
+  <div class="toolbar">
+    <select id="taskFilterStatus" onchange="renderTasks()">
+      <option value="">すべての状態</option>
+      <option>未着手</option><option>進行中</option><option>完了</option>
+    </select>
+    <select id="taskFilterPriority" onchange="renderTasks()">
+      <option value="">優先度すべて</option>
+      <option>高</option><option>中</option><option>低</option>
+    </select>
+    <input class="search" id="taskSearch" placeholder="タスクを検索..." oninput="renderTasks()">
+    <div class="spacer"></div>
+    <button class="btn" onclick="openTaskEdit()">+ タスクを追加</button>
+  </div>
+
+  <div class="cards">
+    <div class="card accent"><div class="label">未着手</div><div class="value" id="taskCntPending">0</div></div>
+    <div class="card gold"><div class="label">進行中</div><div class="value" id="taskCntDoing">0</div></div>
+    <div class="card green"><div class="label">完了</div><div class="value" id="taskCntDone">0</div></div>
+    <div class="card blue"><div class="label">期限切れ</div><div class="value" id="taskCntOver">0</div></div>
+  </div>
+
+  <div class="panel" style="padding: 0;">
+    <table class="data-table" id="tasksTable"></table>
+  </div>
+</section>
+
+<!-- ============ MEETINGS ============ -->
+<section class="tab-panel" id="tab-meetings">
+  <h2 class="section-title">議事録・打ち合わせ</h2>
+  <div class="toolbar">
+    <input class="search" id="meetingSearch" placeholder="議題・決定事項を検索..." oninput="renderMeetings()">
+    <div class="spacer"></div>
+    <button class="btn" onclick="openMeetingEdit()">+ 議事録を追加</button>
+  </div>
+  <div id="meetingsList"></div>
+</section>
+
+</main>
+
+<!-- =============== MODALS =============== -->
+<div class="modal-overlay" id="modal">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+//                  CLOUD SYNC (JSONBin)
+// ============================================================
+const JSONBIN_BIN_ID = '6a0c68fdee5a733b12e4c68e';
+const JSONBIN_KEY = '$2a$10$sxvanzTwcCEM.CgvGEtsHO3Ul5dJwxHLeQFUbwqH3NaROs0knmCS.';
+const APP_PASSWORD = 'kingyo2026';
+let isLoggedIn = false;
+let saveTimer = null;
+let isLoadingFromServer = false;
+
+function showSyncStatus(mode, msg) {
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  el.classList.remove('saving','error');
+  el.classList.add('show');
+  const text = el.querySelector('.text');
+  if (mode === 'saving') {
+    el.classList.add('saving');
+    if (text) text.textContent = '保存中...';
+  } else if (mode === 'synced') {
+    if (text) text.textContent = '同期済 ✓';
+    setTimeout(() => el.classList.remove('show'), 1500);
+  } else if (mode === 'error') {
+    el.classList.add('error');
+    if (text) text.textContent = '同期エラー';
+  } else if (mode === 'loading') {
+    el.classList.add('saving');
+    if (text) text.textContent = '読み込み中...';
+  }
+}
+
+async function saveToServer() {
+  if (!isLoggedIn || isLoadingFromServer) return;
+  showSyncStatus('saving');
+  try {
+    state._updatedAt = new Date().toISOString();
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': JSONBIN_KEY,
+        'X-Bin-Versioning': 'false',
+      },
+      body: JSON.stringify(state),
+    });
+    if (!res.ok) throw new Error('Save failed: ' + res.status);
+    showSyncStatus('synced');
+  } catch (e) {
+    console.error(e);
+    showSyncStatus('error');
+  }
+}
+
+async function loadFromServer() {
+  if (!isLoggedIn) return null;
+  try {
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.record;
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+
+async function doLogin() {
+  const password = document.getElementById('loginPassword').value.trim();
+  if (!password) return;
+  const btn = document.getElementById('loginBtn');
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  if (password !== APP_PASSWORD) {
+    errEl.textContent = '合言葉が違うようです';
+    setTimeout(() => { document.getElementById('loginPassword').select(); }, 50);
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = '確認中...';
+  try {
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    if (!res.ok) {
+      throw new Error('Connection failed');
+    }
+    isLoggedIn = true;
+    try { sessionStorage.setItem('kingyo_session_pw', password); } catch(e) {}
+    await bootApp();
+  } catch (e) {
+    errEl.textContent = 'サーバーに接続できませんでした。通信環境を確認してください';
+    btn.disabled = false;
+    btn.textContent = '開く';
+  }
+}
+
+async function bootApp() {
+  document.getElementById('loginScreen').classList.add('hidden');
+  showSyncStatus('loading');
+  isLoadingFromServer = true;
+
+  const serverState = await loadFromServer();
+
+  if (!serverState || serverState._init === true || !serverState.performers) {
+    // Empty bin - initialize with defaults and push to server
+    state = defaultState();
+    isLoadingFromServer = false;
+    await saveToServer();
+    toast('オンライン同期を初期化しました（初回）');
+  } else {
+    state = serverState;
+    isLoadingFromServer = false;
+    showSyncStatus('synced');
+  }
+
+  renderDashboard();
+  renderAccounting();
+  renderPerformers();
+  renderExhibitors();
+  renderSponsors();
+  renderStaff();
+  renderTasks();
+  renderMeetings();
+}
+
+async function refreshFromServer() {
+  if (!isLoggedIn) return;
+  showSyncStatus('loading');
+  isLoadingFromServer = true;
+  const serverState = await loadFromServer();
+  if (serverState && !serverState._init && serverState.performers) {
+    state = serverState;
+    renderDashboard();
+    renderAccounting();
+    renderPerformers();
+    renderExhibitors();
+    renderSponsors();
+    renderStaff();
+    renderTasks();
+    renderMeetings();
+    showSyncStatus('synced');
+    toast('最新データを読み込みました');
+  } else {
+    showSyncStatus('error');
+    toast('読み込みに失敗しました');
+  }
+  isLoadingFromServer = false;
+}
+
+// ============================================================
+//                     STATE & DEFAULTS
+// ============================================================
+const STORAGE_KEY = 'kingyo_festival_v1';
+const defaultBudget = {
+  festivalDate: '',
+  sheetUrl: 'https://docs.google.com/spreadsheets/d/1RDI22eQGHGPIRoJYAgp7r3EMe8S46wgMS3SXmGi56cI/edit',
+  carryover: 1631,
+  income: [
+    { name: '出店料収入', budget: 180000, note: 'ブース出店料' },
+    { name: '売上歩合収入', budget: 550000, note: '出店売上の10%（自己申告制）' },
+    { name: '入場料収入', budget: 540000, note: '中学生以上200円' },
+    { name: '本部販売収入', budget: 1000000, note: 'ポイ・ランタン・物販等' },
+    { name: '協賛金収入', budget: 600000, note: '前年度：519,000円' },
+    { name: '繰越金', budget: 1631, note: '' },
+  ],
+  expense: [
+    { name: '会場設営費', budget: 58600 },
+    { name: 'ステージ演出費', budget: 118000 },
+    { name: '人件費', budget: 350000 },
+    { name: '保険警備費', budget: 5610 },
+    { name: '運営費', budget: 110000 },
+    { name: '運営原価', budget: 505000 },
+    { name: '広告宣伝費', budget: 199831 },
+    { name: '雑費', budget: 139000 },
+    { name: '会議費', budget: 225000 },
+  ],
+};
+
+const seedPerformers = [
+  { name: '松やーまだ千春', type: '出演料', detail: '', days: 1, fee: 5000, lodging: 0, transport: 0, transportNote: '', paymentType: '有償', status: '確定', lineNote: '', nextContact: '' },
+  { name: 'KEN YAMAMOTO', type: '出演料', detail: '', days: 1, fee: 5000, lodging: 0, transport: 0, transportNote: '', paymentType: '有償', status: '確定', lineNote: '', nextContact: '' },
+  { name: 'YUKO', type: '出演料', detail: '', days: 1, fee: 5000, lodging: 0, transport: 0, transportNote: '', paymentType: '有償', status: '確定', lineNote: '', nextContact: '' },
+  { name: 'KOTARO', type: '出演料', detail: '', days: 1, fee: 5000, lodging: 0, transport: 0, transportNote: '', paymentType: '有償', status: '確定', lineNote: '', nextContact: '' },
+  { name: '金魚姫', type: '出演料', detail: '', days: 2, fee: 10000, lodging: 0, transport: 0, transportNote: '', paymentType: '有償', status: '確定', lineNote: '', nextContact: '' },
+  { name: '中島秀人', type: '旅費・出演料等', detail: 'トークショーと金魚販売', days: 2, fee: 10000, lodging: 9000, transport: 0, transportNote: '飛行機代', paymentType: '有償', status: '確定', lineNote: '', nextContact: '' },
+  { name: '金魚娘', type: '旅費・出演料', detail: 'トークショーと会場盛り上げ', days: 2, fee: 10000, lodging: 9000, transport: 0, transportNote: '飛行機代', paymentType: '有償', status: '確定', lineNote: '', nextContact: '' },
+  { name: '明石焼Tsugumi', type: '旅費・出演料', detail: '', days: 2, fee: 0, lodging: 0, transport: 10000, transportNote: '', paymentType: '有償', status: '交渉中', lineNote: '交通費のみ支給', nextContact: '' },
+  { name: 'ライブプロ４ユニット', type: '出演料', detail: '', days: 1, fee: 0, lodging: 0, transport: 0, transportNote: '', paymentType: '無償', status: '交渉中', lineNote: '', nextContact: '' },
+  { name: 'ローワンベリー', type: '出演料', detail: '', days: 1, fee: 0, lodging: 0, transport: 0, transportNote: '', paymentType: '交渉中', status: '交渉中', lineNote: '出演料・交通費とも交渉中', nextContact: '' },
+  { name: 'キッズダンス', type: '出演料', detail: '', days: 1, fee: 0, lodging: 0, transport: 0, transportNote: '', paymentType: '無償', status: '確定', lineNote: '', nextContact: '' },
+];
+
+const seedExhibitors = (() => {
+  const arr = [];
+  for (let i = 1; i <= 30; i++) {
+    const id = 'B' + String(i).padStart(2, '0');
+    arr.push({ id, name: '', category: '', days: 0, fee: 0, commissionRate: 10, salesReport: 0, status: '未連絡', lineNote: '', contact: '', nextContact: '' });
+  }
+  arr[0] = { ...arr[0], name: '(仮)栞工芸', category: '', days: 1, fee: 2500, commissionRate: 10, status: '交渉中', salesReport: 0, lineNote: '', contact: '', nextContact: '' };
+  arr[1] = { ...arr[1], name: '(仮)黒板熊五郎商店', category: '', days: 2, fee: 5000, commissionRate: 10, status: '交渉中', salesReport: 0, lineNote: '', contact: '', nextContact: '' };
+  return arr;
+})();
+
+const messageTemplates = {
+  '出演依頼': `{名前}様\n\nお世話になっております、金魚祭り実行委員会です。\nこの度、◯月◯日開催の「金魚祭り」にて、ぜひご出演をお願いしたくご連絡しました。\n\n■ 開催日：\n■ 出演希望時間：\n■ 出演料：\n■ 交通費・宿泊費：\n\nご検討のほどよろしくお願いいたします。`,
+  'スケジュール確認': `{名前}様\n\nお世話になっております。\n金魚祭り当日のタイムスケジュールを下記の通り共有いたします。\n\n■ 当日入り時間：\n■ リハーサル：\n■ 本番開始：\n■ 撤収：\n\nご確認のうえ、修正点があればお知らせください。`,
+  'リマインダー': `{名前}様\n\n明日の出演、よろしくお願いいたします。\n\n■ 集合時間：\n■ 集合場所：\n■ 当日の連絡先：\n\nお気をつけてお越しください。`,
+  'お礼': `{名前}様\n\n本日は金魚祭りにご出演いただき誠にありがとうございました。\nおかげさまで大盛況のうちに終えることができました。\n\n■ お支払い予定日：\n■ 振込先確認：\n\n今後ともよろしくお願いいたします。`,
+  '出展募集': `{名前}様\n\n金魚祭り実行委員会です。\nこの度、◯月◯日開催の金魚祭りへの出展者を募集しております。\n\n■ 出展料：1日 2,500円 / 2日 5,000円\n■ 売上歩合：10%（自己申告制）\n■ 参加日数：\n\n出展ご希望の場合は、屋号・販売内容・参加日数をお知らせください。`,
+  '出展確定通知': `{名前}様\n\nお世話になっております。\nこの度はご出展のお申込みありがとうございます。下記の通り確定いたしました。\n\n■ ブース番号：{ブース番号}\n■ 参加日数：\n■ 出展料：\n■ 搬入時間：\n\n後日詳細をご案内します。`,
+  '搬入案内': `{名前}様\n\nブース搬入の詳細をお送りいたします。\n\n■ ブース番号：{ブース番号}\n■ 搬入時間：\n■ 搬入場所：\n■ 駐車場：\n■ 当日の連絡先：\n\nお気をつけてお越しください。`,
+  '売上報告依頼': `{名前}様\n\nお疲れ様でした。本日の売上の自己申告をお願いいたします。\n\n■ ブース番号：{ブース番号}\n■ 売上合計：\n■ 歩合（10%）：\n■ 振込先：\n\nご協力ありがとうございます。`,
+};
+
+let state = null; // initialized after login via bootApp()
+
+function defaultState() {
+  return {
+    settings: JSON.parse(JSON.stringify(defaultBudget)),
+    performers: JSON.parse(JSON.stringify(seedPerformers)),
+    exhibitors: JSON.parse(JSON.stringify(seedExhibitors)),
+    sponsors: [],
+    staff: [],
+    tasks: [],
+    meetings: [],
+    expenseLog: [
+      { date: '2026-03-03', vendor: 'ココス', category: '会議費', amount: 15000, method: '現金', note: '' },
+      { date: '2026-03-03', vendor: '株式会社ココスジャパン', category: '会議費', amount: 11429, method: 'クレジットカード', note: '' },
+    ],
+  };
+}
+
+function saveState() {
+  // Backup locally
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+  // Debounced push to JSONBin
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveToServer, 800);
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function fmt(n) { return '¥' + (Number(n) || 0).toLocaleString('ja-JP'); }
+function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ============================================================
+//                            TABS
+// ============================================================
+document.getElementById('tabs').addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  const tab = e.target.dataset.tab;
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+  if (tab === 'dashboard') renderDashboard();
+  if (tab === 'accounting') renderAccounting();
+});
+
+// ============================================================
+//                         DASHBOARD
+// ============================================================
+function renderDashboard() {
+  const performers = state.performers;
+  const exhibitors = state.exhibitors;
+  const tasks = state.tasks;
+  const meetings = state.meetings;
+
+  const perfConfirmed = performers.filter(p => p.status === '確定').length;
+  const exhibConfirmed = exhibitors.filter(e => e.status === '確定').length;
+  const tasksOpen = tasks.filter(t => t.status !== '完了').length;
+  const tasksOverdue = tasks.filter(t => t.status !== '完了' && t.dueDate && t.dueDate < new Date().toISOString().slice(0,10)).length;
+
+  const nextMeeting = [...meetings].sort((a,b) => (a.date || '').localeCompare(b.date || '')).find(m => m.date >= new Date().toISOString().slice(0,10));
+
+  // Countdown
+  const fd = state.settings.festivalDate;
+  const cd = document.getElementById('countdown');
+  if (fd) {
+    const days = Math.ceil((new Date(fd) - new Date()) / 86400000);
+    cd.textContent = days >= 0 ? `開催まで あと${days}日` : `開催から ${-days}日経過`;
+  } else {
+    cd.textContent = '開催日を設定';
+  }
+
+  const cards = document.getElementById('dashboardCards');
+  cards.innerHTML = `
+    <div class="card accent"><div class="label">出演者</div><div class="value">${perfConfirmed} / ${performers.length}</div><div class="sub">確定 / 全体</div></div>
+    <div class="card gold"><div class="label">出展者ブース</div><div class="value">${exhibConfirmed} / 30</div><div class="sub">確定 / 全体</div></div>
+    <div class="card blue"><div class="label">未完了タスク</div><div class="value">${tasksOpen}</div><div class="sub">うち期限切れ ${tasksOverdue}</div></div>
+    <div class="card green"><div class="label">次回ミーティング</div><div class="value" style="font-size:18px">${nextMeeting ? nextMeeting.date : '未設定'}</div><div class="sub">${nextMeeting ? (nextMeeting.title || '') : '議事録タブから追加'}</div></div>
+  `;
+
+  // Budget chart
+  const ctx = document.getElementById('budgetChart').getContext('2d');
+  const expBudgets = state.settings.expense.map(e => e.budget);
+  const expActuals = state.settings.expense.map(e => sumExpense(e.name));
+  const labels = state.settings.expense.map(e => e.name);
+  if (window._budgetChart) window._budgetChart.destroy();
+  window._budgetChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: '予算', data: expBudgets, backgroundColor: '#D6DBDF' },
+        { label: '実績', data: expActuals, backgroundColor: '#D63031' },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top' } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => '¥' + v.toLocaleString() } } }
+    }
+  });
+
+  // Upcoming
+  const upcoming = [];
+  performers.filter(p => p.nextContact).forEach(p => upcoming.push({ date: p.nextContact, label: `🎤 ${p.name}に連絡` }));
+  exhibitors.filter(e => e.nextContact).forEach(e => upcoming.push({ date: e.nextContact, label: `🏮 ${e.id} ${e.name || '空き'}に連絡` }));
+  tasks.filter(t => t.dueDate && t.status !== '完了').forEach(t => upcoming.push({ date: t.dueDate, label: `✅ ${t.title}` }));
+  if (state.settings.festivalDate) upcoming.push({ date: state.settings.festivalDate, label: '🎏 金魚祭り 開催日' });
+  upcoming.sort((a,b) => a.date.localeCompare(b.date));
+  const upList = document.getElementById('upcomingList');
+  if (upcoming.length === 0) {
+    upList.innerHTML = '<div class="empty">直近の予定はありません</div>';
+  } else {
+    upList.innerHTML = upcoming.slice(0, 8).map(u => `<div style="padding:8px 0;border-bottom:1px solid #F0EAE0;font-size:13px"><strong>${u.date}</strong> — ${escapeHtml(u.label)}</div>`).join('');
+  }
+
+  // Top tasks
+  const topTasks = tasks.filter(t => t.status !== '完了').sort((a,b) => {
+    const pri = { '高': 0, '中': 1, '低': 2 };
+    return (pri[a.priority] || 3) - (pri[b.priority] || 3);
+  }).slice(0, 5);
+  const ttList = document.getElementById('topTasksList');
+  if (topTasks.length === 0) {
+    ttList.innerHTML = '<div class="empty">進行中のタスクはありません</div>';
+  } else {
+    ttList.innerHTML = topTasks.map(t => `<div style="padding:8px 0;border-bottom:1px solid #F0EAE0;font-size:13px;display:flex;justify-content:space-between;gap:8px"><span><span class="priority-${t.priority}">●</span> ${escapeHtml(t.title)}</span><span style="color:#999;font-size:11px">${t.assignee||''} ${t.dueDate||''}</span></div>`).join('');
+  }
+}
+
+// ============================================================
+//                        ACCOUNTING
+// ============================================================
+function sumExpense(category) {
+  return state.expenseLog.filter(e => e.category === category).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+}
+
+function renderAccounting() {
+  // Populate category select
+  const sel = document.getElementById('exCategory');
+  if (sel.options.length === 0) {
+    state.settings.expense.forEach(e => {
+      const o = document.createElement('option');
+      o.value = e.name; o.textContent = e.name;
+      sel.appendChild(o);
+    });
+  }
+
+  // Income table
+  const incomeRows = state.settings.income.map(i => {
+    const actual = 0; // No income log yet — could be extended
+    const diff = actual - i.budget;
+    const pct = i.budget > 0 ? (actual / i.budget * 100).toFixed(1) : '0.0';
+    return `<tr><td>${escapeHtml(i.name)}</td><td class="num">${fmt(i.budget)}</td><td class="num">${fmt(actual)}</td><td class="num" style="color:${diff<0?'#C0392B':'#1E8449'}">${fmt(diff)}</td><td class="num">${pct}%</td></tr>`;
+  }).join('');
+  document.getElementById('incomeTable').innerHTML = `<thead><tr><th>科目</th><th class="num">予算</th><th class="num">実績</th><th class="num">差額</th><th class="num">進捗</th></tr></thead><tbody>${incomeRows}</tbody>`;
+
+  // Expense table
+  const expenseRows = state.settings.expense.map(e => {
+    const actual = sumExpense(e.name);
+    const diff = e.budget - actual;
+    const pct = e.budget > 0 ? (actual / e.budget * 100).toFixed(1) : '0.0';
+    return `<tr><td>${escapeHtml(e.name)}</td><td class="num">${fmt(e.budget)}</td><td class="num">${fmt(actual)}</td><td class="num" style="color:${diff<0?'#C0392B':'#1E8449'}">${fmt(diff)}</td><td class="num">${pct}%<div class="budget-bar ${actual>e.budget?'over':''}"><div class="fill" style="width:${Math.min(100,pct)}%"></div></div></td></tr>`;
+  }).join('');
+  document.getElementById('expenseTable').innerHTML = `<thead><tr><th>科目</th><th class="num">予算</th><th class="num">実績</th><th class="num">残額</th><th class="num">消化率</th></tr></thead><tbody>${expenseRows}</tbody>`;
+
+  // Cards
+  const incomeBudget = state.settings.income.reduce((s, i) => s + i.budget, 0);
+  const expenseBudget = state.settings.expense.reduce((s, e) => s + e.budget, 0);
+  const incomeActual = 0;
+  const expenseActual = state.expenseLog.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  document.getElementById('acIncomeBudget').textContent = fmt(incomeBudget);
+  document.getElementById('acIncomeActual').textContent = fmt(incomeActual);
+  document.getElementById('acExpenseBudget').textContent = fmt(expenseBudget);
+  document.getElementById('acExpenseActual').textContent = fmt(expenseActual);
+
+  // Expense log
+  const logRows = state.expenseLog.length === 0
+    ? `<tr><td colspan="6" class="empty">記録された支出はまだありません</td></tr>`
+    : [...state.expenseLog].reverse().map((e, idx) => {
+      const realIdx = state.expenseLog.length - 1 - idx;
+      return `<tr><td>${e.date}</td><td>${escapeHtml(e.vendor)}</td><td>${escapeHtml(e.category)}</td><td class="num">${fmt(e.amount)}</td><td>${escapeHtml(e.method)}</td><td>${escapeHtml(e.note||'')} <button class="btn small danger" onclick="deleteExpense(${realIdx})">削除</button></td></tr>`;
+    }).join('');
+  document.getElementById('expenseLogTable').innerHTML = `<thead><tr><th>日付</th><th>支払先</th><th>費目</th><th class="num">金額</th><th>方法</th><th>メモ</th></tr></thead><tbody>${logRows}</tbody>`;
+}
+
+function addExpense() {
+  const e = {
+    date: document.getElementById('exDate').value || new Date().toISOString().slice(0,10),
+    vendor: document.getElementById('exVendor').value.trim(),
+    category: document.getElementById('exCategory').value,
+    amount: Number(document.getElementById('exAmount').value) || 0,
+    method: document.getElementById('exMethod').value,
+    note: document.getElementById('exNote').value.trim(),
+  };
+  if (!e.vendor || !e.amount) { toast('支払先と金額を入力してください'); return; }
+  state.expenseLog.push(e);
+  saveState();
+  clearExpenseForm();
+  renderAccounting();
+  toast('支出を追加しました');
+}
+function clearExpenseForm() {
+  ['exDate','exVendor','exAmount','exNote'].forEach(id => document.getElementById(id).value = '');
+}
+function deleteExpense(idx) {
+  if (!confirm('この支出を削除しますか？')) return;
+  state.expenseLog.splice(idx, 1);
+  saveState();
+  renderAccounting();
+}
+
+// ============================================================
+//                       PERFORMERS
+// ============================================================
+function renderPerformers() {
+  const filter = document.getElementById('perfFilterStatus').value;
+  const search = document.getElementById('perfSearch').value.trim().toLowerCase();
+  let list = state.performers.map((p, i) => ({ ...p, _idx: i }));
+  if (filter) list = list.filter(p => p.status === filter);
+  if (search) list = list.filter(p => (p.name + p.detail + p.lineNote).toLowerCase().includes(search));
+
+  const rows = list.length === 0
+    ? `<tr><td colspan="8" class="empty">該当する出演者はいません</td></tr>`
+    : list.map(p => {
+      const pType = p.paymentType || '有償';
+      const total = (Number(p.fee)||0) + (Number(p.lodging)||0) + (Number(p.transport)||0);
+      let payCell;
+      if (pType === '無償') {
+        payCell = `<span class="status-badge" style="background:#F4F4F4;color:#666">🆓 無償</span>`;
+      } else if (pType === '交渉中') {
+        payCell = `<span class="status-badge status-交渉中">💬 交渉中</span>`;
+      } else {
+        const parts = [];
+        if (p.fee > 0) parts.push(`<span style="display:inline-block;margin-right:8px"><span style="color:#888;font-size:11px">出演料</span> ¥${(p.fee).toLocaleString()}</span>`);
+        if (p.lodging > 0) parts.push(`<span style="display:inline-block;margin-right:8px"><span style="color:#888;font-size:11px">宿泊</span> ¥${(p.lodging).toLocaleString()}</span>`);
+        if (p.transport > 0 || p.transportNote) {
+          const tVal = p.transport > 0 ? `¥${(p.transport).toLocaleString()}` : '';
+          const tNote = p.transportNote ? `<span style="font-size:10px;color:#888">（${escapeHtml(p.transportNote)}）</span>` : '';
+          parts.push(`<span style="display:inline-block"><span style="color:#888;font-size:11px">交通費</span> ${tVal}${tNote}</span>`);
+        }
+        payCell = parts.length > 0 ? parts.join('') : `<span style="color:#999;font-size:12px">金額未定</span>`;
+      }
+      const totalCell = pType === '無償' ? '<span style="color:#999">—</span>' : (pType === '交渉中' ? '<span style="color:#B7950B">交渉中</span>' : fmt(total));
+      return `<tr>
+        <td><strong>${escapeHtml(p.name)}</strong><br><span style="font-size:11px;color:#999">${escapeHtml(p.type)}</span></td>
+        <td>${escapeHtml(p.detail || '-')}</td>
+        <td>${p.days||0}日</td>
+        <td style="min-width:200px">${payCell}</td>
+        <td class="num">${totalCell}</td>
+        <td><span class="status-badge status-${p.status}">${p.status}</span></td>
+        <td style="font-size:11px;color:#666;max-width:200px">${escapeHtml(p.lineNote||'')}${p.nextContact?`<br>📅 次回: ${p.nextContact}`:''}</td>
+        <td style="white-space:nowrap">
+          <button class="btn small gold" onclick="openSendModal('performer',{preselectedIdx:${p._idx}})" title="LINE送信">📨</button>
+          <button class="btn small ghost" onclick="openPerformerEdit(${p._idx})">編集</button>
+        </td>
+      </tr>`;
+    }).join('');
+  document.getElementById('performersTable').innerHTML = `<thead><tr><th>名前</th><th>内容</th><th>日数</th><th>支給内訳</th><th class="num">合計</th><th>状態</th><th>LINEメモ</th><th></th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+function openPerformerEdit(idx) {
+  const isNew = idx === undefined;
+  const p = isNew ? { name:'', type:'出演料', detail:'', days:1, fee:0, lodging:0, transport:0, transportNote:'', paymentType:'有償', status:'未連絡', lineNote:'', nextContact:'' } : { ...state.performers[idx] };
+  showModal(`
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>${isNew ? '出演者を追加' : '出演者を編集'}</h3>
+    <div class="form-row">
+      <label>名前<input id="pf_name" value="${escapeHtml(p.name)}"></label>
+      <label>項目<select id="pf_type"><option>出演料</option><option>旅費・出演料</option><option>旅費・出演料等</option></select></label>
+      <label>状態<select id="pf_status"><option>未連絡</option><option>交渉中</option><option>確定</option><option>辞退</option><option>完了</option></select></label>
+    </div>
+    <div class="form-row">
+      <label class="full">内容（演目・備考など）<input id="pf_detail" value="${escapeHtml(p.detail)}"></label>
+    </div>
+    <div class="form-row">
+      <label class="full">報酬区分
+        <select id="pf_paymentType" onchange="togglePaymentFields()">
+          <option>有償</option>
+          <option>無償</option>
+          <option>交渉中</option>
+        </select>
+        <span style="font-size:11px;color:#888;font-weight:normal">※ 有償の場合、下の出演料・宿泊費・交通費のうち実際に支給する項目だけ金額を入れてください（0のままなら支給なし）</span>
+      </label>
+    </div>
+    <div id="paymentFields">
+      <div class="form-row">
+        <label>日数<input type="number" id="pf_days" value="${p.days||0}"></label>
+        <label>出演料<input type="number" id="pf_fee" value="${p.fee||0}" placeholder="0=なし"></label>
+        <label>宿泊費<input type="number" id="pf_lodging" value="${p.lodging||0}" placeholder="0=なし"></label>
+        <label>交通費<input type="number" id="pf_transport" value="${p.transport||0}" placeholder="0=なし"></label>
+      </div>
+      <div class="form-row">
+        <label class="full">交通費の備考（例：飛行機代・新幹線代・実費精算など）<input id="pf_transportNote" value="${escapeHtml(p.transportNote||'')}" placeholder="飛行機代 等"></label>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="full">LINEチャットURL（公式LINE管理画面で取得）<input id="pf_lineChatUrl" value="${escapeHtml(p.lineChatUrl||'')}" placeholder="https://chat.line.biz/... 等"></label>
+    </div>
+    <div class="form-row">
+      <label class="full">LINEでのやり取りメモ<textarea id="pf_lineNote">${escapeHtml(p.lineNote||'')}</textarea></label>
+    </div>
+    <div class="form-row">
+      <label>次回連絡予定日<input type="date" id="pf_nextContact" value="${p.nextContact||''}"></label>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="savePerformer(${isNew?'null':idx})">保存</button>
+      ${isNew?'':`<button class="btn gold small" onclick="openSendModal('performer',{preselectedIdx:${idx}})">📨 この人にLINEを送る</button>`}
+      ${isNew?'':`<button class="btn danger" onclick="deletePerformer(${idx})">削除</button>`}
+      <button class="btn secondary" onclick="closeModal()">キャンセル</button>
+    </div>
+  `);
+  document.getElementById('pf_type').value = p.type;
+  document.getElementById('pf_status').value = p.status;
+  document.getElementById('pf_paymentType').value = p.paymentType || '有償';
+  togglePaymentFields();
+}
+function togglePaymentFields() {
+  const pt = document.getElementById('pf_paymentType').value;
+  const pf = document.getElementById('paymentFields');
+  if (pt === '無償' || pt === '交渉中') {
+    pf.style.opacity = '0.45';
+    pf.style.pointerEvents = 'none';
+  } else {
+    pf.style.opacity = '1';
+    pf.style.pointerEvents = 'auto';
+  }
+}
+function savePerformer(idx) {
+  const paymentType = document.getElementById('pf_paymentType').value;
+  const isPaid = paymentType === '有償';
+  const p = {
+    name: document.getElementById('pf_name').value.trim(),
+    type: document.getElementById('pf_type').value,
+    detail: document.getElementById('pf_detail').value.trim(),
+    paymentType,
+    days: Number(document.getElementById('pf_days').value) || 0,
+    fee: isPaid ? (Number(document.getElementById('pf_fee').value) || 0) : 0,
+    lodging: isPaid ? (Number(document.getElementById('pf_lodging').value) || 0) : 0,
+    transport: isPaid ? (Number(document.getElementById('pf_transport').value) || 0) : 0,
+    transportNote: isPaid ? document.getElementById('pf_transportNote').value.trim() : '',
+    status: document.getElementById('pf_status').value,
+    lineChatUrl: document.getElementById('pf_lineChatUrl').value.trim(),
+    lineNote: document.getElementById('pf_lineNote').value,
+    nextContact: document.getElementById('pf_nextContact').value,
+  };
+  if (!p.name) { toast('名前を入力してください'); return; }
+  if (idx === null) state.performers.push(p);
+  else state.performers[idx] = p;
+  saveState();
+  closeModal();
+  renderPerformers();
+  toast('保存しました');
+}
+function deletePerformer(idx) {
+  if (!confirm('削除しますか？')) return;
+  state.performers.splice(idx, 1);
+  saveState();
+  closeModal();
+  renderPerformers();
+}
+
+// ============================================================
+//                       EXHIBITORS
+// ============================================================
+function renderExhibitors() {
+  const grid = document.getElementById('boothGrid');
+  grid.innerHTML = state.exhibitors.map((b, i) => `
+    <div class="booth ${b.name?'has-data':''} ${b.status}" onclick="openExhibitorEdit(${i})">
+      <div class="booth-id">${b.id}</div>
+      <div class="booth-name">${escapeHtml(b.name) || '<span style="color:#BDC3C7">空き</span>'}</div>
+      ${b.fee?`<div class="booth-fee">¥${b.fee.toLocaleString()} / ${b.days}日</div>`:''}
+      ${b.name?`<div style="margin-top:6px"><span class="status-badge status-${b.status}">${b.status}</span></div>`:''}
+    </div>
+  `).join('');
+
+  // Cards
+  const confirmed = state.exhibitors.filter(e => e.status === '確定').length;
+  const negotiating = state.exhibitors.filter(e => e.status === '交渉中').length;
+  const expectedFee = state.exhibitors.filter(e => e.status === '確定' || e.status === '交渉中').reduce((s,e) => s + (e.fee||0), 0);
+  const expectedCommission = state.exhibitors.filter(e => e.status === '確定' || e.status === '交渉中').reduce((s,e) => s + ((e.salesReport||0) * (e.commissionRate||10) / 100), 0);
+  document.getElementById('exConfirmed').textContent = confirmed;
+  document.getElementById('exNegotiating').textContent = negotiating;
+  document.getElementById('exFeeExpected').textContent = fmt(expectedFee);
+  document.getElementById('exCommissionExpected').textContent = fmt(expectedCommission);
+}
+
+function openExhibitorEdit(idx) {
+  const b = { ...state.exhibitors[idx] };
+  showModal(`
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>${b.id} ブース編集</h3>
+    <div class="form-row">
+      <label>出店名<input id="bx_name" value="${escapeHtml(b.name)}"></label>
+      <label>カテゴリ<input id="bx_cat" value="${escapeHtml(b.category||'')}" placeholder="飲食・物販・体験等"></label>
+      <label>状態<select id="bx_status"><option>未連絡</option><option>交渉中</option><option>確定</option><option>辞退</option><option>完了</option></select></label>
+    </div>
+    <div class="form-row">
+      <label>参加日数<select id="bx_days"><option value="0">未定</option><option value="1">1日</option><option value="2">2日</option></select></label>
+      <label>出展料<input type="number" id="bx_fee" value="${b.fee||0}"></label>
+      <label>歩合率（%）<input type="number" id="bx_rate" value="${b.commissionRate||10}"></label>
+      <label>売上申告額<input type="number" id="bx_sales" value="${b.salesReport||0}"></label>
+    </div>
+    <div class="form-row">
+      <label>連絡先（LINE名・代表者など）<input id="bx_contact" value="${escapeHtml(b.contact||'')}"></label>
+      <label>次回連絡予定<input type="date" id="bx_nextContact" value="${b.nextContact||''}"></label>
+    </div>
+    <div class="form-row">
+      <label class="full">LINEチャットURL（公式LINE管理画面で取得）<input id="bx_lineChatUrl" value="${escapeHtml(b.lineChatUrl||'')}" placeholder="https://chat.line.biz/... 等"></label>
+    </div>
+    <div class="form-row">
+      <label class="full">LINEでのやり取りメモ<textarea id="bx_lineNote">${escapeHtml(b.lineNote||'')}</textarea></label>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="saveExhibitor(${idx})">保存</button>
+      <button class="btn gold small" onclick="openSendModal('exhibitor',{preselectedIdx:${idx}})">📨 LINEを送る</button>
+      <button class="btn ghost" onclick="clearExhibitor(${idx})">クリア（空きに戻す）</button>
+      <button class="btn secondary" onclick="closeModal()">キャンセル</button>
+    </div>
+  `);
+  document.getElementById('bx_status').value = b.status || '未連絡';
+  document.getElementById('bx_days').value = String(b.days || 0);
+  // Auto-fill fee based on days
+  document.getElementById('bx_days').addEventListener('change', e => {
+    const d = Number(e.target.value);
+    if (d === 1 && !document.getElementById('bx_fee').value) document.getElementById('bx_fee').value = 2500;
+    if (d === 2 && !document.getElementById('bx_fee').value) document.getElementById('bx_fee').value = 5000;
+  });
+}
+function saveExhibitor(idx) {
+  state.exhibitors[idx] = {
+    ...state.exhibitors[idx],
+    name: document.getElementById('bx_name').value.trim(),
+    category: document.getElementById('bx_cat').value.trim(),
+    status: document.getElementById('bx_status').value,
+    days: Number(document.getElementById('bx_days').value),
+    fee: Number(document.getElementById('bx_fee').value) || 0,
+    commissionRate: Number(document.getElementById('bx_rate').value) || 10,
+    salesReport: Number(document.getElementById('bx_sales').value) || 0,
+    contact: document.getElementById('bx_contact').value.trim(),
+    nextContact: document.getElementById('bx_nextContact').value,
+    lineChatUrl: document.getElementById('bx_lineChatUrl').value.trim(),
+    lineNote: document.getElementById('bx_lineNote').value,
+  };
+  saveState();
+  closeModal();
+  renderExhibitors();
+  toast('保存しました');
+}
+function clearExhibitor(idx) {
+  if (!confirm('このブースを空きに戻しますか？')) return;
+  const id = state.exhibitors[idx].id;
+  state.exhibitors[idx] = { id, name:'', category:'', days:0, fee:0, commissionRate:10, salesReport:0, status:'未連絡', lineNote:'', lineChatUrl:'', contact:'', nextContact:'' };
+  saveState();
+  closeModal();
+  renderExhibitors();
+}
+
+// ============================================================
+//                        SPONSORS
+// ============================================================
+function renderSponsors() {
+  const filter = document.getElementById('spoFilter').value;
+  const search = document.getElementById('spoSearch').value.trim().toLowerCase();
+  let list = state.sponsors.map((s,i) => ({...s, _idx:i}));
+  if (filter) list = list.filter(s => s.status === filter);
+  if (search) list = list.filter(s => (s.company + (s.note||'')).toLowerCase().includes(search));
+
+  const rows = list.length === 0
+    ? `<tr><td colspan="6" class="empty">協賛先がまだ登録されていません</td></tr>`
+    : list.map(s => `<tr>
+      <td><strong>${escapeHtml(s.company)}</strong></td>
+      <td>${escapeHtml(s.category||'-')}</td>
+      <td class="num">${fmt(s.amount)}</td>
+      <td><span class="status-badge status-${s.status}">${s.status}</span></td>
+      <td>${s.paymentDate || '-'}</td>
+      <td><button class="btn small ghost" onclick="openSponsorEdit(${s._idx})">編集</button></td>
+    </tr>`).join('');
+  document.getElementById('sponsorsTable').innerHTML = `<thead><tr><th>企業名</th><th>カテゴリ</th><th class="num">金額</th><th>状態</th><th>入金日</th><th></th></tr></thead><tbody>${rows}</tbody>`;
+
+  const confirmedAmt = state.sponsors.filter(s => s.status === '確定' || s.status === '入金済').reduce((sum, s) => sum + (Number(s.amount)||0), 0);
+  const paidAmt = state.sponsors.filter(s => s.status === '入金済').reduce((sum, s) => sum + (Number(s.amount)||0), 0);
+  document.getElementById('spoConfirmedAmount').textContent = fmt(confirmedAmt);
+  document.getElementById('spoPaidAmount').textContent = fmt(paidAmt);
+}
+
+function openSponsorEdit(idx) {
+  const isNew = idx === undefined;
+  const s = isNew ? { company:'', category:'', amount:0, status:'未連絡', paymentDate:'', note:'' } : { ...state.sponsors[idx] };
+  showModal(`
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>${isNew?'協賛先を追加':'協賛先を編集'}</h3>
+    <div class="form-row">
+      <label>企業名<input id="sp_company" value="${escapeHtml(s.company)}"></label>
+      <label>カテゴリ<input id="sp_cat" value="${escapeHtml(s.category||'')}" placeholder="ゴールド・シルバー等"></label>
+      <label>金額<input type="number" id="sp_amount" value="${s.amount||0}"></label>
+    </div>
+    <div class="form-row">
+      <label>状態<select id="sp_status"><option>未連絡</option><option>交渉中</option><option>確定</option><option>入金済</option><option>辞退</option></select></label>
+      <label>入金日<input type="date" id="sp_paymentDate" value="${s.paymentDate||''}"></label>
+    </div>
+    <div class="form-row">
+      <label class="full">メモ<textarea id="sp_note">${escapeHtml(s.note||'')}</textarea></label>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="saveSponsor(${isNew?'null':idx})">保存</button>
+      ${isNew?'':`<button class="btn danger" onclick="deleteSponsor(${idx})">削除</button>`}
+      <button class="btn secondary" onclick="closeModal()">キャンセル</button>
+    </div>
+  `);
+  document.getElementById('sp_status').value = s.status;
+}
+function saveSponsor(idx) {
+  const s = {
+    company: document.getElementById('sp_company').value.trim(),
+    category: document.getElementById('sp_cat').value.trim(),
+    amount: Number(document.getElementById('sp_amount').value) || 0,
+    status: document.getElementById('sp_status').value,
+    paymentDate: document.getElementById('sp_paymentDate').value,
+    note: document.getElementById('sp_note').value,
+  };
+  if (!s.company) { toast('企業名を入力してください'); return; }
+  if (idx === null) state.sponsors.push(s);
+  else state.sponsors[idx] = s;
+  saveState();
+  closeModal();
+  renderSponsors();
+  toast('保存しました');
+}
+function deleteSponsor(idx) {
+  if (!confirm('削除しますか？')) return;
+  state.sponsors.splice(idx, 1);
+  saveState();
+  closeModal();
+  renderSponsors();
+}
+
+// ============================================================
+//                          STAFF
+// ============================================================
+const staffRoles = ['会計', '出演者担当', '出展者担当', '広報', '警備', '会場設営', 'ステージ進行', '当日スタッフ', 'その他'];
+
+function renderStaff() {
+  // Populate role filter
+  const sel = document.getElementById('staffFilter');
+  if (sel.options.length === 1) {
+    staffRoles.forEach(r => { const o = document.createElement('option'); o.value = r; o.textContent = r; sel.appendChild(o); });
+  }
+  const filter = document.getElementById('staffFilter').value;
+  const search = document.getElementById('staffSearch').value.trim().toLowerCase();
+  let list = state.staff.map((s,i) => ({...s, _idx:i}));
+  if (filter) list = list.filter(s => (s.roles||[]).includes(filter));
+  if (search) list = list.filter(s => s.name.toLowerCase().includes(search));
+
+  const rows = list.length === 0
+    ? `<tr><td colspan="5" class="empty">スタッフがまだ登録されていません</td></tr>`
+    : list.map(s => `<tr>
+      <td><strong>${escapeHtml(s.name)}</strong></td>
+      <td>${(s.roles||[]).map(r => `<span class="status-badge" style="background:#EBF5FB;color:#2980B9;margin-right:3px">${r}</span>`).join('')}</td>
+      <td>${escapeHtml(s.contact||'-')}</td>
+      <td>${escapeHtml(s.shift||'-')}</td>
+      <td><button class="btn small ghost" onclick="openStaffEdit(${s._idx})">編集</button></td>
+    </tr>`).join('');
+  document.getElementById('staffTable').innerHTML = `<thead><tr><th>名前</th><th>役割</th><th>連絡先</th><th>シフト</th><th></th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+function openStaffEdit(idx) {
+  const isNew = idx === undefined;
+  const s = isNew ? { name:'', roles:[], contact:'', shift:'', note:'' } : { ...state.staff[idx] };
+  showModal(`
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>${isNew?'スタッフを追加':'スタッフを編集'}</h3>
+    <div class="form-row">
+      <label>名前<input id="st_name" value="${escapeHtml(s.name)}"></label>
+      <label>連絡先（電話・LINE等）<input id="st_contact" value="${escapeHtml(s.contact||'')}"></label>
+    </div>
+    <div class="form-row">
+      <label class="full">役割（複数選択可）
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+          ${staffRoles.map(r => `<label style="display:flex;align-items:center;gap:4px;font-weight:normal;background:#F8F9FA;padding:4px 10px;border-radius:6px;cursor:pointer"><input type="checkbox" value="${r}" ${(s.roles||[]).includes(r)?'checked':''}> ${r}</label>`).join('')}
+        </div>
+      </label>
+    </div>
+    <div class="form-row">
+      <label class="full">シフト・担当範囲<input id="st_shift" value="${escapeHtml(s.shift||'')}" placeholder="例：1日目10-15時、2日目終日"></label>
+    </div>
+    <div class="form-row">
+      <label class="full">メモ<textarea id="st_note">${escapeHtml(s.note||'')}</textarea></label>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="saveStaff(${isNew?'null':idx})">保存</button>
+      ${isNew?'':`<button class="btn danger" onclick="deleteStaff(${idx})">削除</button>`}
+      <button class="btn secondary" onclick="closeModal()">キャンセル</button>
+    </div>
+  `);
+}
+function saveStaff(idx) {
+  const roles = Array.from(document.querySelectorAll('#modalContent input[type=checkbox]:checked')).map(c => c.value);
+  const s = {
+    name: document.getElementById('st_name').value.trim(),
+    contact: document.getElementById('st_contact').value.trim(),
+    roles,
+    shift: document.getElementById('st_shift').value.trim(),
+    note: document.getElementById('st_note').value,
+  };
+  if (!s.name) { toast('名前を入力してください'); return; }
+  if (idx === null) state.staff.push(s);
+  else state.staff[idx] = s;
+  saveState();
+  closeModal();
+  renderStaff();
+  toast('保存しました');
+}
+function deleteStaff(idx) {
+  if (!confirm('削除しますか？')) return;
+  state.staff.splice(idx, 1);
+  saveState();
+  closeModal();
+  renderStaff();
+}
+
+// ============================================================
+//                           TASKS
+// ============================================================
+function renderTasks() {
+  const fStatus = document.getElementById('taskFilterStatus').value;
+  const fPri = document.getElementById('taskFilterPriority').value;
+  const search = document.getElementById('taskSearch').value.trim().toLowerCase();
+  let list = state.tasks.map((t,i) => ({...t, _idx:i}));
+  if (fStatus) list = list.filter(t => t.status === fStatus);
+  if (fPri) list = list.filter(t => t.priority === fPri);
+  if (search) list = list.filter(t => (t.title + (t.note||'')).toLowerCase().includes(search));
+
+  list.sort((a,b) => {
+    const ps = { '高':0,'中':1,'低':2 };
+    const psCmp = (ps[a.priority]||3) - (ps[b.priority]||3);
+    if (psCmp !== 0) return psCmp;
+    return (a.dueDate||'9999').localeCompare(b.dueDate||'9999');
+  });
+
+  const today = new Date().toISOString().slice(0,10);
+  const rows = list.length === 0
+    ? `<tr><td colspan="6" class="empty">タスクがまだ登録されていません</td></tr>`
+    : list.map(t => {
+      const overdue = t.status !== '完了' && t.dueDate && t.dueDate < today;
+      return `<tr>
+        <td><span class="priority-${t.priority}">●</span></td>
+        <td><strong>${escapeHtml(t.title)}</strong>${t.note?`<br><span style="font-size:11px;color:#888">${escapeHtml(t.note)}</span>`:''}</td>
+        <td>${escapeHtml(t.assignee||'-')}</td>
+        <td style="color:${overdue?'#C0392B':'inherit'};font-weight:${overdue?'700':'normal'}">${t.dueDate||'-'}${overdue?' ⚠':''}</td>
+        <td><span class="status-badge status-${t.status}">${t.status}</span></td>
+        <td><button class="btn small ghost" onclick="openTaskEdit(${t._idx})">編集</button>${t.status!=='完了'?` <button class="btn small" onclick="completeTask(${t._idx})">✓完了</button>`:''}</td>
+      </tr>`;
+    }).join('');
+  document.getElementById('tasksTable').innerHTML = `<thead><tr><th>優</th><th>タスク</th><th>担当</th><th>期限</th><th>状態</th><th></th></tr></thead><tbody>${rows}</tbody>`;
+
+  document.getElementById('taskCntPending').textContent = state.tasks.filter(t => t.status==='未着手').length;
+  document.getElementById('taskCntDoing').textContent = state.tasks.filter(t => t.status==='進行中').length;
+  document.getElementById('taskCntDone').textContent = state.tasks.filter(t => t.status==='完了').length;
+  document.getElementById('taskCntOver').textContent = state.tasks.filter(t => t.status!=='完了' && t.dueDate && t.dueDate < today).length;
+}
+
+function openTaskEdit(idx) {
+  const isNew = idx === undefined;
+  const t = isNew ? { title:'', assignee:'', dueDate:'', priority:'中', status:'未着手', note:'' } : { ...state.tasks[idx] };
+  const staffOptions = state.staff.map(s => `<option ${s.name===t.assignee?'selected':''}>${escapeHtml(s.name)}</option>`).join('');
+  showModal(`
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>${isNew?'タスクを追加':'タスクを編集'}</h3>
+    <div class="form-row">
+      <label class="full">タスク内容<input id="tk_title" value="${escapeHtml(t.title)}"></label>
+    </div>
+    <div class="form-row">
+      <label>担当者
+        <input id="tk_assignee" list="staffList" value="${escapeHtml(t.assignee||'')}">
+        <datalist id="staffList">${staffOptions}</datalist>
+      </label>
+      <label>期限<input type="date" id="tk_due" value="${t.dueDate||''}"></label>
+      <label>優先度<select id="tk_pri"><option>高</option><option>中</option><option>低</option></select></label>
+      <label>状態<select id="tk_status"><option>未着手</option><option>進行中</option><option>完了</option></select></label>
+    </div>
+    <div class="form-row">
+      <label class="full">メモ<textarea id="tk_note">${escapeHtml(t.note||'')}</textarea></label>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="saveTask(${isNew?'null':idx})">保存</button>
+      ${isNew?'':`<button class="btn danger" onclick="deleteTask(${idx})">削除</button>`}
+      <button class="btn secondary" onclick="closeModal()">キャンセル</button>
+    </div>
+  `);
+  document.getElementById('tk_pri').value = t.priority;
+  document.getElementById('tk_status').value = t.status;
+}
+function saveTask(idx) {
+  const t = {
+    title: document.getElementById('tk_title').value.trim(),
+    assignee: document.getElementById('tk_assignee').value.trim(),
+    dueDate: document.getElementById('tk_due').value,
+    priority: document.getElementById('tk_pri').value,
+    status: document.getElementById('tk_status').value,
+    note: document.getElementById('tk_note').value,
+  };
+  if (!t.title) { toast('タスク内容を入力してください'); return; }
+  if (idx === null) state.tasks.push(t);
+  else state.tasks[idx] = t;
+  saveState();
+  closeModal();
+  renderTasks();
+  toast('保存しました');
+}
+function deleteTask(idx) {
+  if (!confirm('削除しますか？')) return;
+  state.tasks.splice(idx, 1);
+  saveState();
+  closeModal();
+  renderTasks();
+}
+function completeTask(idx) {
+  state.tasks[idx].status = '完了';
+  saveState();
+  renderTasks();
+  toast('完了にしました');
+}
+
+// ============================================================
+//                          MEETINGS
+// ============================================================
+function renderMeetings() {
+  const search = document.getElementById('meetingSearch').value.trim().toLowerCase();
+  let list = state.meetings.map((m,i) => ({...m, _idx:i}));
+  if (search) list = list.filter(m => (m.title+m.agenda+m.decisions+m.actions+m.attendees).toLowerCase().includes(search));
+  list.sort((a,b) => (b.date||'').localeCompare(a.date||''));
+
+  const container = document.getElementById('meetingsList');
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty">議事録がまだ登録されていません。「+ 議事録を追加」から記録を開始できます。</div>';
+    return;
+  }
+  container.innerHTML = list.map(m => `
+    <div class="meeting-card">
+      <div class="meeting-header">
+        <div>
+          <div class="meeting-date">${m.date} ${m.title?'｜'+escapeHtml(m.title):''}</div>
+          <div class="meeting-attendees">出席：${escapeHtml(m.attendees||'-')}</div>
+        </div>
+        <button class="btn small ghost" onclick="openMeetingEdit(${m._idx})">編集</button>
+      </div>
+      ${m.agenda?`<div class="meeting-section"><h4>議題</h4><div class="content">${escapeHtml(m.agenda)}</div></div>`:''}
+      ${m.decisions?`<div class="meeting-section"><h4>決定事項</h4><div class="content">${escapeHtml(m.decisions)}</div></div>`:''}
+      ${m.actions?`<div class="meeting-section"><h4>アクションアイテム</h4><div class="content">${escapeHtml(m.actions)}</div></div>`:''}
+      ${m.next?`<div class="meeting-section"><h4>次回</h4><div class="content">${escapeHtml(m.next)}</div></div>`:''}
+    </div>
+  `).join('');
+}
+
+function openMeetingEdit(idx) {
+  const isNew = idx === undefined;
+  const m = isNew ? { date: new Date().toISOString().slice(0,10), title:'', attendees:'', agenda:'', decisions:'', actions:'', next:'' } : { ...state.meetings[idx] };
+  showModal(`
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>${isNew?'議事録を追加':'議事録を編集'}</h3>
+    <div class="form-row">
+      <label>開催日<input type="date" id="mt_date" value="${m.date}"></label>
+      <label>タイトル<input id="mt_title" value="${escapeHtml(m.title||'')}" placeholder="第◯回 実行委員会"></label>
+    </div>
+    <div class="form-row">
+      <label class="full">出席者<input id="mt_attendees" value="${escapeHtml(m.attendees||'')}" placeholder="名前をカンマ区切りで"></label>
+    </div>
+    <div class="form-row">
+      <label class="full">議題<textarea id="mt_agenda" style="min-height:80px">${escapeHtml(m.agenda||'')}</textarea></label>
+    </div>
+    <div class="form-row">
+      <label class="full">決定事項<textarea id="mt_decisions" style="min-height:80px">${escapeHtml(m.decisions||'')}</textarea></label>
+    </div>
+    <div class="form-row">
+      <label class="full">アクションアイテム（誰が何をいつまでに）<textarea id="mt_actions" style="min-height:80px">${escapeHtml(m.actions||'')}</textarea></label>
+    </div>
+    <div class="form-row">
+      <label class="full">次回予定<input id="mt_next" value="${escapeHtml(m.next||'')}" placeholder="例：4/10 19:00〜 ココスにて"></label>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="saveMeeting(${isNew?'null':idx})">保存</button>
+      <button class="btn ghost" onclick="meetingToTasks(${isNew?'null':idx})">アクションをタスクに転記</button>
+      ${isNew?'':`<button class="btn danger" onclick="deleteMeeting(${idx})">削除</button>`}
+      <button class="btn secondary" onclick="closeModal()">キャンセル</button>
+    </div>
+  `);
+}
+function saveMeeting(idx) {
+  const m = {
+    date: document.getElementById('mt_date').value,
+    title: document.getElementById('mt_title').value.trim(),
+    attendees: document.getElementById('mt_attendees').value.trim(),
+    agenda: document.getElementById('mt_agenda').value,
+    decisions: document.getElementById('mt_decisions').value,
+    actions: document.getElementById('mt_actions').value,
+    next: document.getElementById('mt_next').value.trim(),
+  };
+  if (!m.date) { toast('開催日を入力してください'); return; }
+  if (idx === null) state.meetings.push(m);
+  else state.meetings[idx] = m;
+  saveState();
+  closeModal();
+  renderMeetings();
+  toast('議事録を保存しました');
+}
+function deleteMeeting(idx) {
+  if (!confirm('削除しますか？')) return;
+  state.meetings.splice(idx, 1);
+  saveState();
+  closeModal();
+  renderMeetings();
+}
+function meetingToTasks(idx) {
+  const actions = document.getElementById('mt_actions').value.trim();
+  if (!actions) { toast('アクションアイテムを入力してから実行してください'); return; }
+  const lines = actions.split('\n').filter(l => l.trim());
+  lines.forEach(line => {
+    state.tasks.push({ title: line.trim(), assignee: '', dueDate: '', priority: '中', status: '未着手', note: '議事録から自動転記' });
+  });
+  saveState();
+  toast(`${lines.length}件のタスクを追加しました`);
+}
+
+// ============================================================
+//                    LINE TEMPLATES & SEND
+// ============================================================
+function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  }
+  fallbackCopy(text);
+}
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed'; ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
+}
+
+function personalize(template, recipient, type) {
+  if (!recipient) return template;
+  const vars = {
+    '名前': recipient.name || '',
+    'ブース番号': type === 'exhibitor' && recipient.id ? recipient.id : '',
+  };
+  return template.replace(/\{([^}]+)\}/g, (m, key) => vars[key] !== undefined && vars[key] !== '' ? vars[key] : m);
+}
+
+function openSendModal(type, options) {
+  options = options || {};
+  const isPerf = type === 'performer';
+  const list = isPerf ? state.performers : state.exhibitors;
+  const perfTemplates = ['出演依頼','スケジュール確認','リマインダー','お礼'];
+  const exhTemplates = ['出展募集','出展確定通知','搬入案内','売上報告依頼'];
+  const templates = isPerf ? perfTemplates : exhTemplates;
+  const presetTemplate = options.presetTemplate || templates[0];
+  const preselected = options.preselectedIdx !== undefined ? [options.preselectedIdx] : [];
+  const filterOptions = ['全員','未連絡','交渉中','確定','辞退','完了'];
+
+  showModal(`
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>📢 ${isPerf ? '出演者' : '出展者'}にLINEを送る</h3>
+
+    <div class="form-row">
+      <label>テンプレート
+        <select id="sm_template" onchange="updateSendPreview()">
+          ${templates.map(t => `<option ${t===presetTemplate?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </label>
+      <label>絞り込み
+        <select id="sm_filter" onchange="updateSendList()">
+          ${filterOptions.map(f => `<option>${f}</option>`).join('')}
+        </select>
+      </label>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;margin-bottom:6px">
+      <strong style="font-size:14px">送信先 <span id="sm_count" style="color:#888;font-weight:normal;font-size:12px"></span></strong>
+      <div>
+        <button class="btn small ghost" onclick="selectAllRecipients(true)">全選択</button>
+        <button class="btn small ghost" onclick="selectAllRecipients(false)">全解除</button>
+      </div>
+    </div>
+    <div id="sm_recipientList" style="max-height:180px;overflow-y:auto;border:1px solid #E8E0D5;border-radius:6px;padding:8px;background:#FAF6EE"></div>
+
+    <div style="margin-top:14px;margin-bottom:6px"><strong style="font-size:14px">メッセージ</strong></div>
+    <textarea id="sm_messageEdit" style="width:100%;min-height:150px;padding:10px;border:1px solid #D5D5D5;border-radius:6px;font-family:inherit;font-size:13px;box-sizing:border-box"></textarea>
+    <div style="font-size:11px;color:#888;margin-top:4px">※ {名前} と {ブース番号} は送信時に各人の値に自動で置換されます。直接編集も可能です。</div>
+
+    <div class="form-actions" style="margin-top:14px;border-top:1px solid #E8E0D5;padding-top:12px;flex-direction:column;align-items:stretch">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" style="flex:1;min-width:160px" onclick="startStepByStepSend()">📨 1人ずつ順番に送る</button>
+        <button class="btn gold" style="flex:1;min-width:160px" onclick="bulkCopyCombined()">📋 全員分まとめてコピー</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn ghost" style="flex:1;min-width:160px" onclick="copyGenericMessage()">📋 共通メッセージのみコピー（セグメント一斉送信用）</button>
+        <button class="btn secondary" onclick="closeModal()">閉じる</button>
+      </div>
+    </div>
+  `);
+
+  window._sendContext = { type, list };
+  // pre-select recipient if specified
+  if (preselected.length > 0) {
+    window._sendContext.preselected = preselected;
+  }
+  updateSendList();
+  updateSendPreview();
+}
+
+function updateSendList() {
+  const ctx = window._sendContext;
+  if (!ctx) return;
+  const filter = document.getElementById('sm_filter').value;
+  const preselected = ctx.preselected || [];
+  let recipients = ctx.list.map((r,i) => ({...r, _idx:i}))
+    .filter(r => ctx.type === 'exhibitor' ? r.name : true);
+  if (filter !== '全員') recipients = recipients.filter(r => r.status === filter);
+
+  const div = document.getElementById('sm_recipientList');
+  if (recipients.length === 0) {
+    div.innerHTML = '<div style="color:#999;text-align:center;padding:12px;font-size:13px">該当する人がいません</div>';
+  } else {
+    div.innerHTML = recipients.map(r => `
+      <label style="display:flex;align-items:center;gap:8px;padding:5px 4px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='#fff'" onmouseout="this.style.background=''">
+        <input type="checkbox" data-recipient-idx="${r._idx}" ${preselected.includes(r._idx)?'checked':''} onchange="updateRecipientCount()">
+        <span style="font-size:13px;flex:1">
+          <strong>${escapeHtml(ctx.type==='exhibitor'?r.id+' ':'')}${escapeHtml(r.name)}</strong>
+          <span class="status-badge status-${r.status}" style="margin-left:6px">${r.status}</span>
+          ${r.lineChatUrl ? '<span style="color:#27AE60;font-size:11px;margin-left:4px">●LINE</span>' : '<span style="color:#BDC3C7;font-size:11px;margin-left:4px">○LINE未設定</span>'}
+        </span>
+      </label>
+    `).join('');
+  }
+  // clear preselected after first render
+  if (preselected.length > 0) ctx.preselected = [];
+  updateRecipientCount();
+}
+
+function updateRecipientCount() {
+  const count = document.querySelectorAll('[data-recipient-idx]:checked').length;
+  const el = document.getElementById('sm_count');
+  if (el) el.textContent = `(選択中：${count}名)`;
+}
+
+function selectAllRecipients(check) {
+  document.querySelectorAll('[data-recipient-idx]').forEach(c => c.checked = check);
+  updateRecipientCount();
+}
+
+function getSelectedRecipients() {
+  const ctx = window._sendContext;
+  if (!ctx) return [];
+  const indices = Array.from(document.querySelectorAll('[data-recipient-idx]:checked')).map(c => Number(c.dataset.recipientIdx));
+  return indices.map(i => ctx.list[i]);
+}
+
+function updateSendPreview() {
+  const name = document.getElementById('sm_template').value;
+  document.getElementById('sm_messageEdit').value = messageTemplates[name];
+}
+
+function bulkCopyCombined() {
+  const ctx = window._sendContext;
+  const recipients = getSelectedRecipients();
+  if (recipients.length === 0) { toast('送信先を選んでください'); return; }
+  const tmpl = document.getElementById('sm_messageEdit').value;
+  const combined = recipients.map((r, i) => {
+    const msg = personalize(tmpl, r, ctx.type);
+    const url = r.lineChatUrl ? `\n[LINE] ${r.lineChatUrl}` : '\n[LINE] 未設定';
+    return `─── ${i+1}/${recipients.length}  ${r.name} さん ───${url}\n\n${msg}`;
+  }).join('\n\n────────────────\n\n');
+  copyToClipboard(combined);
+  toast(`${recipients.length}名分のメッセージをコピーしました`);
+}
+
+function copyGenericMessage() {
+  const tmpl = document.getElementById('sm_messageEdit').value;
+  const generic = tmpl
+    .replace(/\{名前\}/g, '皆様')
+    .replace(/\{ブース番号\}/g, '（各自のブース番号）');
+  copyToClipboard(generic);
+  toast('一斉送信用メッセージをコピーしました');
+}
+
+function startStepByStepSend() {
+  const ctx = window._sendContext;
+  const recipients = getSelectedRecipients();
+  if (recipients.length === 0) { toast('送信先を選んでください'); return; }
+  window._stepSend = {
+    recipients,
+    type: ctx.type,
+    tmpl: document.getElementById('sm_messageEdit').value,
+    idx: 0,
+  };
+  renderStepSend();
+}
+
+function renderStepSend() {
+  const st = window._stepSend;
+  if (!st) return;
+  if (st.idx >= st.recipients.length) {
+    closeModal();
+    toast('全員分の送信が完了しました！');
+    return;
+  }
+  const r = st.recipients[st.idx];
+  const msg = personalize(st.tmpl, r, st.type);
+  const current = st.idx + 1;
+  const total = st.recipients.length;
+  showModal(`
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>📨 順番に送信中 <span style="color:#888;font-size:14px;font-weight:normal">(${current} / ${total})</span></h3>
+
+    <div style="background:linear-gradient(135deg,#FFF8E7,#FFEEDC);padding:14px;border-radius:8px;margin-bottom:14px;border:1px solid #F5E6A8">
+      <div style="font-size:12px;color:#888;margin-bottom:2px">現在の宛先</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:4px">${st.type==='exhibitor'?r.id+' ':''}${escapeHtml(r.name)}</div>
+      <div style="font-size:12px">
+        <span class="status-badge status-${r.status}">${r.status}</span>
+        ${r.lineChatUrl ? `<a href="${escapeHtml(r.lineChatUrl)}" target="_blank" rel="noopener" style="margin-left:8px;color:#27AE60;text-decoration:none">🔗 LINEチャットを開く</a>` : '<span style="color:#C0392B;margin-left:8px">⚠ LINE URL未設定（編集画面で登録できます）</span>'}
+      </div>
+    </div>
+
+    <div style="margin-bottom:6px;font-size:12px;color:#666">送信メッセージ（コピー済み）</div>
+    <pre style="background:#F8F9FA;padding:12px;border-radius:6px;font-size:12px;white-space:pre-wrap;font-family:inherit;max-height:260px;overflow-y:auto;border:1px solid #E8E0D5;margin:0">${escapeHtml(msg)}</pre>
+
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn" onclick="copyAndOpenStep()">📋 もう一度コピー${r.lineChatUrl?' + LINEを開く':''}</button>
+      <button class="btn gold" onclick="nextStep()" style="flex:1">${current<total?`次の人へ → (${current+1}/${total})`:'完了'}</button>
+      <button class="btn secondary" onclick="skipStep()">スキップ</button>
+      <button class="btn ghost" onclick="closeModal()">中断</button>
+    </div>
+  `);
+  // auto-copy on render
+  copyToClipboard(msg);
+}
+
+function copyAndOpenStep() {
+  const st = window._stepSend;
+  const r = st.recipients[st.idx];
+  const msg = personalize(st.tmpl, r, st.type);
+  copyToClipboard(msg);
+  if (r.lineChatUrl) window.open(r.lineChatUrl, '_blank');
+  toast('コピーしました');
+}
+
+function nextStep() {
+  window._stepSend.idx++;
+  renderStepSend();
+}
+function skipStep() {
+  window._stepSend.idx++;
+  renderStepSend();
+}
+
+// keep old function name for backward compat
+function copyTemplate(name) {
+  copyToClipboard(messageTemplates[name]);
+  toast(`「${name}」テンプレをコピーしました`);
+}
+
+// ============================================================
+//                          SETTINGS
+// ============================================================
+function openSettings() {
+  const s = state.settings;
+  showModal(`
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>⚙ 設定</h3>
+    <div class="form-row">
+      <label>金魚祭り 開催日<input type="date" id="st_festivalDate" value="${s.festivalDate||''}"></label>
+    </div>
+    <div class="form-row">
+      <label class="full">会計シートURL（参考リンク）<input id="st_sheetUrl" value="${escapeHtml(s.sheetUrl||'')}"></label>
+    </div>
+    <h3 style="margin-top:18px">予算（収入）</h3>
+    <div id="incomeBudgetForm">
+      ${s.income.map((i, idx) => `
+        <div class="form-row">
+          <label>科目<input value="${escapeHtml(i.name)}" data-income-name="${idx}"></label>
+          <label>予算<input type="number" value="${i.budget}" data-income-budget="${idx}"></label>
+        </div>
+      `).join('')}
+    </div>
+    <h3 style="margin-top:18px">予算（支出）</h3>
+    <div id="expenseBudgetForm">
+      ${s.expense.map((e, idx) => `
+        <div class="form-row">
+          <label>科目<input value="${escapeHtml(e.name)}" data-expense-name="${idx}"></label>
+          <label>予算<input type="number" value="${e.budget}" data-expense-budget="${idx}"></label>
+        </div>
+      `).join('')}
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="saveSettings()">保存</button>
+      <button class="btn secondary" onclick="closeModal()">キャンセル</button>
+    </div>
+    <details style="margin-top:18px">
+      <summary>📥 データの取り込み（インポート）</summary>
+      <p style="font-size:13px;margin:10px 0">エクスポートしたJSONファイルから取り込みます。<strong>現在のオンラインデータを上書きします</strong>。</p>
+      <button class="btn gold" onclick="importFromJson()">JSONファイルを選択して取り込む</button>
+    </details>
+    <details style="margin-top:10px">
+      <summary>🚪 ログアウト</summary>
+      <p style="font-size:13px;margin:10px 0">この端末からログアウトします（合言葉の再入力が必要になります）。</p>
+      <button class="btn ghost" onclick="logout()">ログアウト</button>
+    </details>
+    <details style="margin-top:10px">
+      <summary>⚠ データのリセット</summary>
+      <p style="font-size:13px;margin:10px 0;color:#C0392B">アプリ内のすべてのデータを初期状態に戻します。<strong>オンラインの全委員のデータも消えます</strong>。</p>
+      <button class="btn danger" onclick="resetAll()">全データをリセット</button>
+    </details>
+  `);
+}
+function logout() {
+  try { sessionStorage.removeItem('kingyo_session_pw'); } catch(e) {}
+  location.reload();
+}
+function saveSettings() {
+  state.settings.festivalDate = document.getElementById('st_festivalDate').value;
+  state.settings.sheetUrl = document.getElementById('st_sheetUrl').value;
+  document.querySelectorAll('[data-income-name]').forEach(inp => {
+    state.settings.income[Number(inp.dataset.incomeName)].name = inp.value;
+  });
+  document.querySelectorAll('[data-income-budget]').forEach(inp => {
+    state.settings.income[Number(inp.dataset.incomeBudget)].budget = Number(inp.value) || 0;
+  });
+  document.querySelectorAll('[data-expense-name]').forEach(inp => {
+    state.settings.expense[Number(inp.dataset.expenseName)].name = inp.value;
+  });
+  document.querySelectorAll('[data-expense-budget]').forEach(inp => {
+    state.settings.expense[Number(inp.dataset.expenseBudget)].budget = Number(inp.value) || 0;
+  });
+  saveState();
+  closeModal();
+  renderDashboard();
+  renderAccounting();
+  toast('設定を保存しました');
+}
+async function resetAll() {
+  if (!confirm('本当にすべてのデータをリセットしますか？オンライン上のデータも初期化されます')) return;
+  if (!confirm('全委員が見ているデータが消えます。元に戻せません。本当に大丈夫ですか？')) return;
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+  state = defaultState();
+  await saveToServer();
+  closeModal();
+  location.reload();
+}
+
+function importFromJson() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const imported = JSON.parse(ev.target.result);
+        if (!imported.performers && !imported.exhibitors) {
+          toast('このファイルは金魚祭りアプリのデータではないようです');
+          return;
+        }
+        if (!confirm('現在のオンラインデータを上書きして取り込みますか？')) return;
+        state = imported;
+        saveState();
+        closeModal();
+        location.reload();
+      } catch (err) {
+        toast('ファイルの読み込みに失敗しました');
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ============================================================
+//                         EXPORT
+// ============================================================
+function exportAll() {
+  const data = JSON.stringify(state, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `kingyo-festival-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('JSONでエクスポートしました');
+}
+
+// ============================================================
+//                          MODAL
+// ============================================================
+function showModal(html) {
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modal').classList.add('active');
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+}
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target.id === 'modal') closeModal();
+});
+
+// ============================================================
+//                            INIT
+// ============================================================
+// Try session-restore (so refreshing the page doesn't require re-entering password in same tab)
+window.addEventListener('DOMContentLoaded', () => {
+  let savedPw = null;
+  try { savedPw = sessionStorage.getItem('kingyo_session_pw'); } catch(e) {}
+  if (savedPw) {
+    document.getElementById('loginPassword').value = savedPw;
+    doLogin();
+  }
+});
+</script>
+
+</body>
+</html>
