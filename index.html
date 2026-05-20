@@ -479,6 +479,8 @@ details[open] summary { margin-bottom: 10px; }
   <h2 class="section-title">全体ダッシュボード</h2>
   <div class="cards" id="dashboardCards"></div>
 
+  <div class="panel" id="contactAlertPanel"></div>
+
   <div class="panel">
     <h3>📊 予算消化状況</h3>
     <div style="max-width: 800px;"><canvas id="budgetChart" height="160"></canvas></div>
@@ -575,7 +577,7 @@ details[open] summary { margin-bottom: 10px; }
 
 <!-- ============ EXHIBITORS ============ -->
 <section class="tab-panel" id="tab-exhibitors">
-  <h2 class="section-title">出展者管理（ブースB01〜B30）</h2>
+  <h2 class="section-title">出展者管理</h2>
 
   <div class="template-bar">
     <div class="label">LINE送信テンプレ（クリック → 送信先を選んで送る）</div>
@@ -596,12 +598,12 @@ details[open] summary { margin-bottom: 10px; }
   </div>
 
   <div class="panel">
-    <h3>ブース配置（クリックで編集）</h3>
+    <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px">ブース配置（クリックで編集）<button class="btn small" onclick="addBooth()">＋ ブースを追加</button></h3>
     <div class="booth-grid" id="boothGrid"></div>
   </div>
 
   <div class="cards">
-    <div class="card accent"><div class="label">確定ブース数</div><div class="value" id="exConfirmed">0</div><div class="sub">/ 30</div></div>
+    <div class="card accent"><div class="label">確定ブース数</div><div class="value" id="exConfirmed">0</div><div class="sub" id="exTotal">/ 30</div></div>
     <div class="card gold"><div class="label">交渉中</div><div class="value" id="exNegotiating">0</div></div>
     <div class="card blue"><div class="label">出展料収入見込</div><div class="value" id="exFeeExpected">¥0</div></div>
     <div class="card green"><div class="label">売上歩合見込</div><div class="value" id="exCommissionExpected">¥0</div></div>
@@ -904,10 +906,10 @@ const seedExhibitors = (() => {
   const arr = [];
   for (let i = 1; i <= 30; i++) {
     const id = 'B' + String(i).padStart(2, '0');
-    arr.push({ id, name: '', category: '', days: 0, fee: 0, commissionRate: 10, salesReport: 0, status: '未連絡', lineNote: '', contact: '', nextContact: '' });
+    arr.push({ id, name: '', category: '', days: 0, fee: 0, commissionRate: 10, salesDay1: 0, salesDay2: 0, status: '未連絡', lineNote: '', contact: '', phone: '', nextContact: '' });
   }
-  arr[0] = { ...arr[0], name: '(仮)栞工芸', category: '', days: 1, fee: 2500, commissionRate: 10, status: '交渉中', salesReport: 0, lineNote: '', contact: '', nextContact: '' };
-  arr[1] = { ...arr[1], name: '(仮)黒板熊五郎商店', category: '', days: 2, fee: 5000, commissionRate: 10, status: '交渉中', salesReport: 0, lineNote: '', contact: '', nextContact: '' };
+  arr[0] = { ...arr[0], name: '(仮)栞工芸', category: '', days: 1, fee: 2500, commissionRate: 10, status: '交渉中', lineNote: '', contact: '', nextContact: '' };
+  arr[1] = { ...arr[1], name: '(仮)黒板熊五郎商店', category: '', days: 2, fee: 5000, commissionRate: 10, status: '交渉中', lineNote: '', contact: '', nextContact: '' };
   return arr;
 })();
 
@@ -958,6 +960,30 @@ function toast(msg) {
 
 function fmt(n) { return '¥' + (Number(n) || 0).toLocaleString('ja-JP'); }
 function getFestivalDate1() { return (state.settings && (state.settings.festivalDate1 || state.settings.festivalDate)) || ''; }
+function todayStr() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10); }
+function getExhibitorSales(e) {
+  if (e.salesDay1 != null || e.salesDay2 != null) return (Number(e.salesDay1)||0) + (Number(e.salesDay2)||0);
+  return Number(e.salesReport)||0;
+}
+function getContactList() {
+  const today = todayStr();
+  const list = [];
+  (state.performers||[]).forEach((p, i) => {
+    if (p.status === '辞退') return;
+    let reason = null;
+    if (p.status === '未連絡') reason = '未連絡';
+    else if (p.nextContact && p.nextContact <= today) reason = '予定日';
+    if (reason) list.push({ type:'performer', idx:i, name:p.name, reason, nextContact:p.nextContact||'' });
+  });
+  (state.exhibitors||[]).forEach((e, i) => {
+    if (!e.name || e.status === '辞退') return;
+    let reason = null;
+    if (e.status === '未連絡') reason = '未連絡';
+    else if (e.nextContact && e.nextContact <= today) reason = '予定日';
+    if (reason) list.push({ type:'exhibitor', idx:i, name:(e.id+' '+e.name), reason, nextContact:e.nextContact||'' });
+  });
+  return list;
+}
 function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // ============================================================
@@ -1015,6 +1041,21 @@ function renderDashboard() {
     <div class="card blue"><div class="label">未完了タスク</div><div class="value">${tasksOpen}</div><div class="sub">うち期限切れ ${tasksOverdue}</div></div>
     <div class="card green"><div class="label">次回ミーティング</div><div class="value" style="font-size:18px">${nextMeeting ? nextMeeting.date : '未設定'}</div><div class="sub">${nextMeeting ? (nextMeeting.title || '') : '議事録タブから追加'}</div></div>
   `;
+
+  // Contact alerts (送り忘れ防止)
+  const contactList = getContactList();
+  const cap = document.getElementById('contactAlertPanel');
+  if (contactList.length === 0) {
+    cap.style.borderLeft = '4px solid #27AE60';
+    cap.innerHTML = '<h3>📣 連絡が必要な人</h3><div style="color:#1E8449;font-size:13px;padding:4px 0">✅ 連絡待ちの人はいません。バッチリです！</div>';
+  } else {
+    cap.style.borderLeft = '4px solid #E67E22';
+    cap.innerHTML = `<h3>📣 連絡が必要な人（${contactList.length}人）</h3>` +
+      contactList.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #F0EAE0;font-size:13px">
+        <span><strong>${escapeHtml(c.name)}</strong> <span class="status-badge ${c.reason==='未連絡'?'status-未連絡':'status-交渉中'}" style="margin-left:4px">${c.reason==='未連絡'?'未連絡':'連絡予定 '+c.nextContact}</span></span>
+        <button class="btn small gold" onclick="openSendModal('${c.type}',{preselectedIdx:${c.idx}})">📨 連絡する</button>
+      </div>`).join('');
+  }
 
   // Budget chart
   const ctx = document.getElementById('budgetChart').getContext('2d');
@@ -1194,7 +1235,7 @@ function renderPerformers() {
         <td style="min-width:200px">${payCell}</td>
         <td class="num">${totalCell}</td>
         <td><span class="status-badge status-${p.status}">${p.status}</span></td>
-        <td style="font-size:11px;color:#666;max-width:200px">${escapeHtml(p.lineNote||'')}${p.nextContact?`<br>📅 次回: ${p.nextContact}`:''}</td>
+        <td style="font-size:11px;color:#666;max-width:200px">${escapeHtml(p.lineNote||'')}${p.lastContact?`<br>✓ 最終連絡: ${p.lastContact}`:''}${p.nextContact?`<br>📅 次回: ${p.nextContact}`:''}</td>
         <td style="white-space:nowrap">
           <button class="btn small gold" onclick="openSendModal('performer',{preselectedIdx:${p._idx}})" title="LINE送信">📨</button>
           <button class="btn small ghost" onclick="openPerformerEdit(${p._idx})">編集</button>
@@ -1246,6 +1287,7 @@ function openPerformerEdit(idx) {
       <label class="full">LINEでのやり取りメモ<textarea id="pf_lineNote">${escapeHtml(p.lineNote||'')}</textarea></label>
     </div>
     <div class="form-row">
+      <label>最終連絡日<input type="date" id="pf_lastContact" value="${p.lastContact||''}"></label>
       <label>次回連絡予定日<input type="date" id="pf_nextContact" value="${p.nextContact||''}"></label>
     </div>
     <div class="form-actions">
@@ -1287,6 +1329,7 @@ function savePerformer(idx) {
     status: document.getElementById('pf_status').value,
     lineChatUrl: document.getElementById('pf_lineChatUrl').value.trim(),
     lineNote: document.getElementById('pf_lineNote').value,
+    lastContact: document.getElementById('pf_lastContact').value,
     nextContact: document.getElementById('pf_nextContact').value,
   };
   if (!p.name) { toast('名前を入力してください'); return; }
@@ -1323,8 +1366,9 @@ function renderExhibitors() {
   const confirmed = state.exhibitors.filter(e => e.status === '確定').length;
   const negotiating = state.exhibitors.filter(e => e.status === '交渉中').length;
   const expectedFee = state.exhibitors.filter(e => e.status === '確定' || e.status === '交渉中').reduce((s,e) => s + (e.fee||0), 0);
-  const expectedCommission = state.exhibitors.filter(e => e.status === '確定' || e.status === '交渉中').reduce((s,e) => s + ((e.salesReport||0) * (e.commissionRate||10) / 100), 0);
+  const expectedCommission = state.exhibitors.filter(e => e.status === '確定' || e.status === '交渉中').reduce((s,e) => s + (getExhibitorSales(e) * (e.commissionRate||10) / 100), 0);
   document.getElementById('exConfirmed').textContent = confirmed;
+  document.getElementById('exTotal').textContent = '/ ' + state.exhibitors.length;
   document.getElementById('exNegotiating').textContent = negotiating;
   document.getElementById('exFeeExpected').textContent = fmt(expectedFee);
   document.getElementById('exCommissionExpected').textContent = fmt(expectedCommission);
@@ -1344,10 +1388,18 @@ function openExhibitorEdit(idx) {
       <label>参加日数<select id="bx_days"><option value="0">未定</option><option value="1">1日</option><option value="2">2日</option></select></label>
       <label>出展料<input type="number" id="bx_fee" value="${b.fee||0}"></label>
       <label>歩合率（%）<input type="number" id="bx_rate" value="${b.commissionRate||10}"></label>
-      <label>売上申告額<input type="number" id="bx_sales" value="${b.salesReport||0}"></label>
+    </div>
+    <div class="form-row">
+      <label>売上申告額（1日目）<input type="number" id="bx_salesDay1" value="${b.salesDay1!=null?b.salesDay1:(b.salesReport||0)}" oninput="updateSalesTotal()"></label>
+      <label id="bx_day2SalesWrap">売上申告額（2日目）<input type="number" id="bx_salesDay2" value="${b.salesDay2||0}" oninput="updateSalesTotal()"></label>
+      <label>売上合計（自動計算）<input type="text" id="bx_salesTotal" value="" readonly style="background:#F0EAE0;font-weight:700"></label>
     </div>
     <div class="form-row">
       <label>連絡先（LINE名・代表者など）<input id="bx_contact" value="${escapeHtml(b.contact||'')}"></label>
+      <label>電話番号<input type="tel" id="bx_phone" value="${escapeHtml(b.phone||'')}" placeholder="090-1234-5678"></label>
+    </div>
+    <div class="form-row">
+      <label>最終連絡日<input type="date" id="bx_lastContact" value="${b.lastContact||''}"></label>
       <label>次回連絡予定<input type="date" id="bx_nextContact" value="${b.nextContact||''}"></label>
     </div>
     <div class="form-row">
@@ -1360,6 +1412,7 @@ function openExhibitorEdit(idx) {
       <button class="btn" onclick="saveExhibitor(${idx})">保存</button>
       <button class="btn gold small" onclick="openSendModal('exhibitor',{preselectedIdx:${idx}})">📨 LINEを送る</button>
       <button class="btn ghost" onclick="clearExhibitor(${idx})">クリア（空きに戻す）</button>
+      <button class="btn danger small" onclick="deleteBooth(${idx})">ブース削除</button>
       <button class="btn secondary" onclick="closeModal()">キャンセル</button>
     </div>
   `);
@@ -1371,6 +1424,46 @@ function openExhibitorEdit(idx) {
     if (d === 1 && !document.getElementById('bx_fee').value) document.getElementById('bx_fee').value = 2500;
     if (d === 2 && !document.getElementById('bx_fee').value) document.getElementById('bx_fee').value = 5000;
   });
+  if ((state.settings.festivalDays||1) < 2) {
+    const w = document.getElementById('bx_day2SalesWrap');
+    if (w) w.style.display = 'none';
+  }
+  updateSalesTotal();
+}
+function updateSalesTotal() {
+  const d1El = document.getElementById('bx_salesDay1');
+  if (!d1El) return;
+  const d1 = Number(d1El.value) || 0;
+  const day2Wrap = document.getElementById('bx_day2SalesWrap');
+  const day2Hidden = day2Wrap && day2Wrap.style.display === 'none';
+  const d2 = day2Hidden ? 0 : (Number((document.getElementById('bx_salesDay2')||{}).value) || 0);
+  const totalEl = document.getElementById('bx_salesTotal');
+  if (totalEl) totalEl.value = '¥' + (d1 + d2).toLocaleString('ja-JP');
+}
+function addBooth() {
+  let maxNum = 0;
+  state.exhibitors.forEach(e => {
+    const m = /^B(\d+)$/.exec(e.id || '');
+    if (m) maxNum = Math.max(maxNum, Number(m[1]));
+  });
+  const newId = 'B' + String(maxNum + 1).padStart(2, '0');
+  state.exhibitors.push({ id:newId, name:'', category:'', days:0, fee:0, commissionRate:10, salesDay1:0, salesDay2:0, status:'未連絡', lineNote:'', lineChatUrl:'', contact:'', phone:'', nextContact:'', lastContact:'' });
+  saveState();
+  renderExhibitors();
+  toast(newId + ' を追加しました');
+}
+function deleteBooth(idx) {
+  const b = state.exhibitors[idx];
+  if (!b) return;
+  const msg = b.name
+    ? `${b.id}「${b.name}」を、ブースごと完全に削除しますか？`
+    : `${b.id} を削除しますか？`;
+  if (!confirm(msg)) return;
+  state.exhibitors.splice(idx, 1);
+  saveState();
+  closeModal();
+  renderExhibitors();
+  toast('ブースを削除しました');
 }
 function saveExhibitor(idx) {
   state.exhibitors[idx] = {
@@ -1381,8 +1474,11 @@ function saveExhibitor(idx) {
     days: Number(document.getElementById('bx_days').value),
     fee: Number(document.getElementById('bx_fee').value) || 0,
     commissionRate: Number(document.getElementById('bx_rate').value) || 10,
-    salesReport: Number(document.getElementById('bx_sales').value) || 0,
+    salesDay1: Number(document.getElementById('bx_salesDay1').value) || 0,
+    salesDay2: (state.settings.festivalDays||1) >= 2 ? (Number(document.getElementById('bx_salesDay2').value) || 0) : 0,
     contact: document.getElementById('bx_contact').value.trim(),
+    phone: document.getElementById('bx_phone').value.trim(),
+    lastContact: document.getElementById('bx_lastContact').value,
     nextContact: document.getElementById('bx_nextContact').value,
     lineChatUrl: document.getElementById('bx_lineChatUrl').value.trim(),
     lineNote: document.getElementById('bx_lineNote').value,
@@ -1395,7 +1491,7 @@ function saveExhibitor(idx) {
 function clearExhibitor(idx) {
   if (!confirm('このブースを空きに戻しますか？')) return;
   const id = state.exhibitors[idx].id;
-  state.exhibitors[idx] = { id, name:'', category:'', days:0, fee:0, commissionRate:10, salesReport:0, status:'未連絡', lineNote:'', lineChatUrl:'', contact:'', nextContact:'' };
+  state.exhibitors[idx] = { id, name:'', category:'', days:0, fee:0, commissionRate:10, salesDay1:0, salesDay2:0, status:'未連絡', lineNote:'', lineChatUrl:'', contact:'', phone:'', nextContact:'', lastContact:'' };
   saveState();
   closeModal();
   renderExhibitors();
@@ -2081,6 +2177,12 @@ function bulkCopyCombined() {
   }).join('\n\n────────────────\n\n');
   copyToClipboard(combined);
   toast(`${recipients.length}名分のメッセージをコピーしました`);
+  if (confirm(`コピーした${recipients.length}名を「連絡済み（最終連絡日=今日）」として記録しますか？`)) {
+    recipients.forEach(r => { r.lastContact = todayStr(); });
+    saveState();
+    renderPerformers(); renderExhibitors(); renderDashboard();
+    toast('連絡済みとして記録しました');
+  }
 }
 
 function copyGenericMessage() {
@@ -2090,6 +2192,13 @@ function copyGenericMessage() {
     .replace(/\{ブース番号\}/g, '（各自のブース番号）');
   copyToClipboard(generic);
   toast('一斉送信用メッセージをコピーしました');
+  const recipients = getSelectedRecipients();
+  if (recipients.length > 0 && confirm(`選択中の${recipients.length}名を「連絡済み（最終連絡日=今日）」として記録しますか？`)) {
+    recipients.forEach(r => { r.lastContact = todayStr(); });
+    saveState();
+    renderPerformers(); renderExhibitors(); renderDashboard();
+    toast('連絡済みとして記録しました');
+  }
 }
 
 function startStepByStepSend() {
@@ -2109,6 +2218,8 @@ function renderStepSend() {
   const st = window._stepSend;
   if (!st) return;
   if (st.idx >= st.recipients.length) {
+    saveState();
+    renderPerformers(); renderExhibitors(); renderDashboard();
     closeModal();
     toast('全員分の送信が完了しました！');
     return;
@@ -2154,7 +2265,10 @@ function copyAndOpenStep() {
 }
 
 function nextStep() {
-  window._stepSend.idx++;
+  const st = window._stepSend;
+  const r = st.recipients[st.idx];
+  if (r) { r.lastContact = todayStr(); saveState(); }
+  st.idx++;
   renderStepSend();
 }
 function skipStep() {
