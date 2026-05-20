@@ -598,7 +598,7 @@ details[open] summary { margin-bottom: 10px; }
   </div>
 
   <div class="panel">
-    <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px">ブース配置（クリックで編集）<button class="btn small" onclick="addBooth()">＋ ブースを追加</button></h3>
+    <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">ブース配置（クリックで編集）<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small gold" onclick="importSalesReports()">📥 売上報告を取り込む</button><button class="btn small" onclick="addBooth()">＋ ブースを追加</button></span></h3>
     <div class="booth-grid" id="boothGrid"></div>
   </div>
 
@@ -708,6 +708,7 @@ details[open] summary { margin-bottom: 10px; }
 //                  CLOUD SYNC (JSONBin)
 // ============================================================
 const JSONBIN_BIN_ID = '6a0c68fdee5a733b12e4c68e';
+const SUBMISSIONS_BIN_ID = '6a0d631f6877513b27a0721c';
 const JSONBIN_KEY = '$2a$10$sxvanzTwcCEM.CgvGEtsHO3Ul5dJwxHLeQFUbwqH3NaROs0knmCS.';
 const APP_PASSWORD = 'kingyo2026';
 const GEMINI_API_KEY = 'AIzaSyD45XjdbxzaktspqaCq70oTw4Ur6WJRjYE';
@@ -823,6 +824,7 @@ async function bootApp() {
     showSyncStatus('synced');
   }
 
+  if (renumberBooths()) saveState();
   renderDashboard();
   renderAccounting();
   renderPerformers();
@@ -840,6 +842,7 @@ async function refreshFromServer() {
   const serverState = await loadFromServer();
   if (serverState && !serverState._init && serverState.performers) {
     state = serverState;
+    renumberBooths();
     renderDashboard();
     renderAccounting();
     renderPerformers();
@@ -921,7 +924,7 @@ const messageTemplates = {
   '出展募集': `{名前}様\n\n金魚祭り実行委員会です。\nこの度、◯月◯日開催の金魚祭りへの出展者を募集しております。\n\n■ 出展料：1日 2,500円 / 2日 5,000円\n■ 売上歩合：10%（自己申告制）\n■ 参加日数：\n\n出展ご希望の場合は、屋号・販売内容・参加日数をお知らせください。`,
   '出展確定通知': `{名前}様\n\nお世話になっております。\nこの度はご出展のお申込みありがとうございます。下記の通り確定いたしました。\n\n■ ブース番号：{ブース番号}\n■ 参加日数：\n■ 出展料：\n■ 搬入時間：\n\n後日詳細をご案内します。`,
   '搬入案内': `{名前}様\n\nブース搬入の詳細をお送りいたします。\n\n■ ブース番号：{ブース番号}\n■ 搬入時間：\n■ 搬入場所：\n■ 駐車場：\n■ 当日の連絡先：\n\nお気をつけてお越しください。`,
-  '売上報告依頼': `{名前}様\n\nお疲れ様でした。本日の売上の自己申告をお願いいたします。\n\n■ ブース番号：{ブース番号}\n■ 売上合計：\n■ 歩合（10%）：\n■ 振込先：\n\nご協力ありがとうございます。`,
+  '売上報告依頼': `{名前}様\n\nお疲れ様でした。当日の売上の自己申告をお願いいたします。\n\n▼ こちらのフォームからご報告ください\nhttps://kingyo-uriage.shiorikougei.workers.dev/\n\n（ブース番号：{ブース番号}）\n\nご協力ありがとうございます。`,
 };
 
 let state = null; // initialized after login via bootApp()
@@ -1440,17 +1443,74 @@ function updateSalesTotal() {
   const totalEl = document.getElementById('bx_salesTotal');
   if (totalEl) totalEl.value = '¥' + (d1 + d2).toLocaleString('ja-JP');
 }
-function addBooth() {
-  let maxNum = 0;
-  state.exhibitors.forEach(e => {
-    const m = /^B(\d+)$/.exec(e.id || '');
-    if (m) maxNum = Math.max(maxNum, Number(m[1]));
+async function importSalesReports() {
+  showSyncStatus('loading');
+  try {
+    const res = await fetch('https://api.jsonbin.io/v3/b/' + SUBMISSIONS_BIN_ID + '/latest?t=' + Date.now(), {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    if (!res.ok) throw new Error('読み込み失敗 ' + res.status);
+    const data = await res.json();
+    const rec = data.record || {};
+    const submissions = Array.isArray(rec.submissions) ? rec.submissions : [];
+    showSyncStatus('synced');
+    if (submissions.length === 0) { toast('まだ売上報告は届いていません'); return; }
+    const latest = {};
+    submissions.forEach(function(s) {
+      const bid = String(s.boothId || '').trim();
+      if (!bid) return;
+      if (!latest[bid] || String(s.submittedAt||'') > String(latest[bid].submittedAt||'')) latest[bid] = s;
+    });
+    const imported = [];
+    const unmatched = [];
+    Object.keys(latest).forEach(function(bid) {
+      const sub = latest[bid];
+      const booth = state.exhibitors.find(function(e) { return e.id === bid; });
+      if (booth) {
+        booth.salesDay1 = Number(sub.day1) || 0;
+        booth.salesDay2 = Number(sub.day2) || 0;
+        imported.push({ id: bid, name: booth.name, d1: booth.salesDay1, d2: booth.salesDay2 });
+      } else {
+        unmatched.push(bid);
+      }
+    });
+    saveState();
+    renderExhibitors();
+    let html = '<button class="modal-close" onclick="closeModal()">×</button><h3>📥 売上取り込み結果</h3>';
+    html += '<p style="font-size:13px;color:#555">' + imported.length + '件のブースに売上を反映しました。</p>';
+    if (imported.length) {
+      html += '<table class="data-table"><thead><tr><th>ブース</th><th class="num">1日目</th><th class="num">2日目</th><th class="num">合計</th></tr></thead><tbody>';
+      html += imported.map(function(r) {
+        return '<tr><td>' + escapeHtml(r.id + ' ' + (r.name||'')) + '</td><td class="num">' + fmt(r.d1) + '</td><td class="num">' + fmt(r.d2) + '</td><td class="num">' + fmt(r.d1 + r.d2) + '</td></tr>';
+      }).join('');
+      html += '</tbody></table>';
+    }
+    if (unmatched.length) {
+      html += '<p style="font-size:12px;color:#C0392B;margin-top:12px">⚠ 該当ブースが見つからなかった報告：' + escapeHtml(unmatched.join(', ')) + '<br>ブース番号をご確認ください。</p>';
+    }
+    html += '<div class="form-actions"><button class="btn secondary" onclick="closeModal()">閉じる</button></div>';
+    showModal(html);
+  } catch (e) {
+    console.error(e);
+    showSyncStatus('error');
+    toast('売上の取り込みに失敗しました：' + e.message);
+  }
+}
+
+function renumberBooths() {
+  let changed = false;
+  state.exhibitors.forEach(function(b, i) {
+    const newId = 'B' + String(i + 1).padStart(2, '0');
+    if (b.id !== newId) { b.id = newId; changed = true; }
   });
-  const newId = 'B' + String(maxNum + 1).padStart(2, '0');
-  state.exhibitors.push({ id:newId, name:'', category:'', days:0, fee:0, commissionRate:10, salesDay1:0, salesDay2:0, status:'未連絡', lineNote:'', lineChatUrl:'', contact:'', phone:'', nextContact:'', lastContact:'' });
+  return changed;
+}
+function addBooth() {
+  state.exhibitors.push({ id:'', name:'', category:'', days:0, fee:0, commissionRate:10, salesDay1:0, salesDay2:0, status:'未連絡', lineNote:'', lineChatUrl:'', contact:'', phone:'', nextContact:'', lastContact:'' });
+  renumberBooths();
   saveState();
   renderExhibitors();
-  toast(newId + ' を追加しました');
+  toast('ブースを追加しました');
 }
 function deleteBooth(idx) {
   const b = state.exhibitors[idx];
@@ -1460,10 +1520,11 @@ function deleteBooth(idx) {
     : `${b.id} を削除しますか？`;
   if (!confirm(msg)) return;
   state.exhibitors.splice(idx, 1);
+  renumberBooths();
   saveState();
   closeModal();
   renderExhibitors();
-  toast('ブースを削除しました');
+  toast('ブースを削除しました（番号を振り直しました）');
 }
 function saveExhibitor(idx) {
   state.exhibitors[idx] = {
