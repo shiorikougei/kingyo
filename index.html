@@ -1,5 +1,4 @@
 
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -861,7 +860,9 @@ async function refreshFromServer() {
 // ============================================================
 const STORAGE_KEY = 'kingyo_festival_v1';
 const defaultBudget = {
-  festivalDate: '',
+  festivalDays: 2,
+  festivalDate1: '',
+  festivalDate2: '',
   sheetUrl: 'https://docs.google.com/spreadsheets/d/1RDI22eQGHGPIRoJYAgp7r3EMe8S46wgMS3SXmGi56cI/edit',
   carryover: 1631,
   income: [
@@ -956,6 +957,7 @@ function toast(msg) {
 }
 
 function fmt(n) { return '¥' + (Number(n) || 0).toLocaleString('ja-JP'); }
+function getFestivalDate1() { return (state.settings && (state.settings.festivalDate1 || state.settings.festivalDate)) || ''; }
 function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // ============================================================
@@ -987,13 +989,23 @@ function renderDashboard() {
   const nextMeeting = [...meetings].sort((a,b) => (a.date || '').localeCompare(b.date || '')).find(m => m.date >= new Date().toISOString().slice(0,10));
 
   // Countdown
-  const fd = state.settings.festivalDate;
   const cd = document.getElementById('countdown');
-  if (fd) {
-    const days = Math.ceil((new Date(fd) - new Date()) / 86400000);
-    cd.textContent = days >= 0 ? `開催まで あと${days}日` : `開催から ${-days}日経過`;
-  } else {
+  const d1 = getFestivalDate1();
+  const d2 = state.settings.festivalDate2;
+  if (!d1) {
     cd.textContent = '開催日を設定';
+  } else {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const start = new Date(d1); start.setHours(0,0,0,0);
+    const end = d2 ? new Date(d2) : new Date(d1); end.setHours(0,0,0,0);
+    const toStart = Math.round((start - today) / 86400000);
+    if (toStart > 0) {
+      cd.textContent = `開催まで あと${toStart}日`;
+    } else if (today <= end) {
+      cd.textContent = '🎏 開催中！';
+    } else {
+      cd.textContent = `開催から ${Math.round((today - end) / 86400000)}日経過`;
+    }
   }
 
   const cards = document.getElementById('dashboardCards');
@@ -1031,7 +1043,15 @@ function renderDashboard() {
   performers.filter(p => p.nextContact).forEach(p => upcoming.push({ date: p.nextContact, label: `🎤 ${p.name}に連絡` }));
   exhibitors.filter(e => e.nextContact).forEach(e => upcoming.push({ date: e.nextContact, label: `🏮 ${e.id} ${e.name || '空き'}に連絡` }));
   tasks.filter(t => t.dueDate && t.status !== '完了').forEach(t => upcoming.push({ date: t.dueDate, label: `✅ ${t.title}` }));
-  if (state.settings.festivalDate) upcoming.push({ date: state.settings.festivalDate, label: '🎏 金魚祭り 開催日' });
+  {
+    const fd1 = getFestivalDate1(), fd2 = state.settings.festivalDate2;
+    if (fd1 && fd2) {
+      upcoming.push({ date: fd1, label: '🎏 金魚祭り 1日目' });
+      upcoming.push({ date: fd2, label: '🎏 金魚祭り 2日目' });
+    } else if (fd1) {
+      upcoming.push({ date: fd1, label: '🎏 金魚祭り 開催日' });
+    }
+  }
   upcoming.sort((a,b) => a.date.localeCompare(b.date));
   const upList = document.getElementById('upcomingList');
   if (upcoming.length === 0) {
@@ -2157,7 +2177,14 @@ function openSettings() {
     <button class="modal-close" onclick="closeModal()">×</button>
     <h3>⚙ 設定</h3>
     <div class="form-row">
-      <label>金魚祭り 開催日<input type="date" id="st_festivalDate" value="${s.festivalDate||''}"></label>
+      <label>開催日数
+        <select id="st_festivalDays" onchange="toggleDay2()">
+          <option value="1">1日開催</option>
+          <option value="2">2日開催</option>
+        </select>
+      </label>
+      <label>開催日（1日目）<input type="date" id="st_festivalDate1" value="${getFestivalDate1()}"></label>
+      <label id="st_day2Wrap">開催日（2日目）<input type="date" id="st_festivalDate2" value="${s.festivalDate2||''}"></label>
     </div>
     <div class="form-row">
       <label class="full">会計シートURL（参考リンク）<input id="st_sheetUrl" value="${escapeHtml(s.sheetUrl||'')}"></label>
@@ -2200,13 +2227,23 @@ function openSettings() {
       <button class="btn danger" onclick="resetAll()">全データをリセット</button>
     </details>
   `);
+  document.getElementById('st_festivalDays').value = String(s.festivalDays || (s.festivalDate2 ? 2 : 1));
+  toggleDay2();
+}
+function toggleDay2() {
+  const days = document.getElementById('st_festivalDays').value;
+  const wrap = document.getElementById('st_day2Wrap');
+  if (wrap) wrap.style.display = days === '2' ? '' : 'none';
 }
 function logout() {
   try { sessionStorage.removeItem('kingyo_session_pw'); } catch(e) {}
   location.reload();
 }
 function saveSettings() {
-  state.settings.festivalDate = document.getElementById('st_festivalDate').value;
+  state.settings.festivalDays = Number(document.getElementById('st_festivalDays').value) || 1;
+  state.settings.festivalDate1 = document.getElementById('st_festivalDate1').value;
+  state.settings.festivalDate2 = state.settings.festivalDays === 2 ? document.getElementById('st_festivalDate2').value : '';
+  delete state.settings.festivalDate;
   state.settings.sheetUrl = document.getElementById('st_sheetUrl').value;
   document.querySelectorAll('[data-income-name]').forEach(inp => {
     state.settings.income[Number(inp.dataset.incomeName)].name = inp.value;
