@@ -567,6 +567,7 @@ details[open] summary { margin-bottom: 10px; }
     </select>
     <input class="search" id="perfSearch" placeholder="名前・内容で検索..." oninput="renderPerformers()">
     <div class="spacer"></div>
+    <button class="btn small" onclick="importPerformerApps()">📥 出演応募を取り込む</button>
     <button class="btn" onclick="openPerformerEdit()">+ 出演者を追加</button>
   </div>
 
@@ -598,7 +599,7 @@ details[open] summary { margin-bottom: 10px; }
   </div>
 
   <div class="panel">
-    <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">ブース配置（クリックで編集）<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small gold" onclick="importSalesReports()">📥 売上報告を取り込む</button><button class="btn small" onclick="addBooth()">＋ ブースを追加</button></span></h3>
+    <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">ブース配置（クリックで編集）<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small" onclick="importExhibitorApps()">📥 出展申込を取り込む</button><button class="btn small gold" onclick="importSalesReports()">📥 売上報告を取り込む</button><button class="btn small" onclick="addBooth()">＋ ブースを追加</button></span></h3>
     <div class="booth-grid" id="boothGrid"></div>
   </div>
 
@@ -921,7 +922,7 @@ const messageTemplates = {
   'スケジュール確認': `{名前}様\n\nお世話になっております。\n金魚祭り当日のタイムスケジュールを下記の通り共有いたします。\n\n■ 当日入り時間：\n■ リハーサル：\n■ 本番開始：\n■ 撤収：\n\nご確認のうえ、修正点があればお知らせください。`,
   'リマインダー': `{名前}様\n\n明日の出演、よろしくお願いいたします。\n\n■ 集合時間：\n■ 集合場所：\n■ 当日の連絡先：\n\nお気をつけてお越しください。`,
   'お礼': `{名前}様\n\n本日は金魚祭りにご出演いただき誠にありがとうございました。\nおかげさまで大盛況のうちに終えることができました。\n\n■ お支払い予定日：\n■ 振込先確認：\n\n今後ともよろしくお願いいたします。`,
-  '出展募集': `{名前}様\n\n金魚祭り実行委員会です。\nこの度、◯月◯日開催の金魚祭りへの出展者を募集しております。\n\n■ 出展料：1日 2,500円 / 2日 5,000円\n■ 売上歩合：10%（自己申告制）\n■ 参加日数：\n\n出展ご希望の場合は、屋号・販売内容・参加日数をお知らせください。`,
+  '出展募集': `{名前}様\n\n金魚祭り実行委員会です。\nこの度、◯月◯日開催の金魚祭りへの出展者を募集しております。\n\n■ 出展料：1日 2,500円 / 2日 5,000円\n■ 売上歩合：10%（自己申告制）\n\n▼ 出展のお申込みはこちらのフォームから\nhttps://kingyo-uriage.shiorikougei.workers.dev/?form=shutten\n\nご検討よろしくお願いいたします。`,
   '出展確定通知': `{名前}様\n\nお世話になっております。\nこの度はご出展のお申込みありがとうございます。下記の通り確定いたしました。\n\n■ ブース番号：{ブース番号}\n■ 参加日数：\n■ 出展料：\n■ 搬入時間：\n\n後日詳細をご案内します。`,
   '搬入案内': `{名前}様\n\nブース搬入の詳細をお送りいたします。\n\n■ ブース番号：{ブース番号}\n■ 搬入時間：\n■ 搬入場所：\n■ 駐車場：\n■ 当日の連絡先：\n\nお気をつけてお越しください。`,
   '売上報告依頼': `{名前}様\n\nお疲れ様でした。当日の売上の自己申告をお願いいたします。\n\n▼ こちらのフォームからご報告ください\nhttps://kingyo-uriage.shiorikougei.workers.dev/\n\n（ブース番号：{ブース番号}）\n\nご協力ありがとうございます。`,
@@ -1509,6 +1510,95 @@ async function importSalesReports(forceAll) {
     console.error(e);
     showSyncStatus('error');
     toast('売上の取り込みに失敗しました：' + e.message);
+  }
+}
+
+async function importExhibitorApps() {
+  showSyncStatus('loading');
+  try {
+    const res = await fetch('https://api.jsonbin.io/v3/b/' + SUBMISSIONS_BIN_ID + '/latest?t=' + Date.now(), { headers: { 'X-Master-Key': JSONBIN_KEY } });
+    if (!res.ok) throw new Error('読み込み失敗 ' + res.status);
+    const data = await res.json();
+    const apps = Array.isArray((data.record||{}).shuttenApps) ? data.record.shuttenApps : [];
+    showSyncStatus('synced');
+    if (apps.length === 0) { toast('出展申込はまだ届いていません'); return; }
+    const since = state.settings.lastShuttenImport || '';
+    const newApps = apps.filter(function(a){ return String(a.submittedAt||'') > since; });
+    if (newApps.length === 0) { toast('新しい出展申込はありません'); return; }
+    const added = [];
+    newApps.forEach(function(a) {
+      let booth = state.exhibitors.find(function(e){ return !e.name; });
+      if (!booth) {
+        state.exhibitors.push({ id:'', name:'', category:'', days:0, fee:0, commissionRate:10, salesDay1:0, salesDay2:0, status:'未連絡', lineNote:'', lineChatUrl:'', contact:'', phone:'', nextContact:'', lastContact:'' });
+        renumberBooths();
+        booth = state.exhibitors[state.exhibitors.length - 1];
+      }
+      booth.name = a.name || '(名称未記入)';
+      booth.category = a.category || '';
+      booth.days = Number(a.days) || 0;
+      booth.fee = booth.days === 2 ? 5000 : (booth.days === 1 ? 2500 : 0);
+      booth.commissionRate = 10;
+      booth.contact = a.contact || '';
+      booth.phone = a.phone || '';
+      booth.status = '交渉中';
+      booth.lineNote = '【出展申込フォームより】' + (a.note ? '\n' + a.note : '');
+      added.push(booth.id + ' ' + booth.name);
+    });
+    state.settings.lastShuttenImport = new Date().toISOString();
+    saveState();
+    renderExhibitors();
+    let html = '<button class="modal-close" onclick="closeModal()">×</button><h3>📥 出展申込の取り込み結果</h3>';
+    html += '<p style="font-size:13px;color:#555">' + added.length + '件の出展申込をブースに追加しました（状態：交渉中）。</p>';
+    html += '<ul style="font-size:13px;padding-left:20px">' + added.map(function(x){ return '<li>' + escapeHtml(x) + '</li>'; }).join('') + '</ul>';
+    html += '<div class="form-actions"><button class="btn secondary" onclick="closeModal()">閉じる</button></div>';
+    showModal(html);
+  } catch (e) {
+    console.error(e);
+    showSyncStatus('error');
+    toast('取り込みに失敗しました：' + e.message);
+  }
+}
+
+async function importPerformerApps() {
+  showSyncStatus('loading');
+  try {
+    const res = await fetch('https://api.jsonbin.io/v3/b/' + SUBMISSIONS_BIN_ID + '/latest?t=' + Date.now(), { headers: { 'X-Master-Key': JSONBIN_KEY } });
+    if (!res.ok) throw new Error('読み込み失敗 ' + res.status);
+    const data = await res.json();
+    const apps = Array.isArray((data.record||{}).shutsuenApps) ? data.record.shutsuenApps : [];
+    showSyncStatus('synced');
+    if (apps.length === 0) { toast('出演応募はまだ届いていません'); return; }
+    const since = state.settings.lastShutsuenImport || '';
+    const newApps = apps.filter(function(a){ return String(a.submittedAt||'') > since; });
+    if (newApps.length === 0) { toast('新しい出演応募はありません'); return; }
+    const added = [];
+    newApps.forEach(function(a) {
+      state.performers.push({
+        name: a.name || '(名前未記入)',
+        type: '出演料',
+        detail: a.detail || '',
+        paymentType: '交渉中',
+        days: a.days === 'both' ? 2 : (Number(a.days) || 1),
+        fee: 0, lodging: 0, transport: 0, transportNote: '',
+        status: '交渉中',
+        lineChatUrl: '',
+        lineNote: '【出演応募フォームより】連絡担当: ' + (a.contact||'') + ' / TEL: ' + (a.phone||'') + (a.note ? '\n' + a.note : ''),
+        lastContact: '', nextContact: ''
+      });
+      added.push(a.name || '(名前未記入)');
+    });
+    state.settings.lastShutsuenImport = new Date().toISOString();
+    saveState();
+    renderPerformers();
+    let html = '<button class="modal-close" onclick="closeModal()">×</button><h3>📥 出演応募の取り込み結果</h3>';
+    html += '<p style="font-size:13px;color:#555">' + added.length + '件の出演応募を出演者リストに追加しました（状態：交渉中）。</p>';
+    html += '<ul style="font-size:13px;padding-left:20px">' + added.map(function(x){ return '<li>' + escapeHtml(x) + '</li>'; }).join('') + '</ul>';
+    html += '<div class="form-actions"><button class="btn secondary" onclick="closeModal()">閉じる</button></div>';
+    showModal(html);
+  } catch (e) {
+    console.error(e);
+    showSyncStatus('error');
+    toast('取り込みに失敗しました：' + e.message);
   }
 }
 
@@ -2379,6 +2469,17 @@ function openSettings() {
     <div class="form-row">
       <label class="full">会計シートURL（参考リンク）<input id="st_sheetUrl" value="${escapeHtml(s.sheetUrl||'')}"></label>
     </div>
+    <details style="margin-top:6px">
+      <summary>📋 配布用フォームのURL（出展者・出演者に配る）</summary>
+      <div style="font-size:12px;margin:10px 0;line-height:1.6;color:#444">
+        <strong>出展申込フォーム</strong><br>
+        <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/?form=shutten" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0 8px">
+        <strong>出演応募フォーム</strong><br>
+        <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/?form=shutsuen" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0 8px">
+        <strong>売上報告フォーム</strong><br>
+        <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0">
+      </div>
+    </details>
     <h3 style="margin-top:18px">予算（収入）</h3>
     <div id="incomeBudgetForm">
       ${s.income.map((i, idx) => `
