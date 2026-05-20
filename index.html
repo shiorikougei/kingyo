@@ -1464,24 +1464,29 @@ async function importSalesReports(forceAll) {
       showModal(h);
       return;
     }
-    const latest = {};
+    const byBooth = {};
     subs.forEach(function(s) {
       const bid = String(s.boothId || '').trim();
       if (!bid) return;
-      if (!latest[bid] || String(s.submittedAt||'') > String(latest[bid].submittedAt||'')) latest[bid] = s;
+      if (!byBooth[bid]) byBooth[bid] = [];
+      byBooth[bid].push(s);
     });
     const imported = [];
     const unmatched = [];
-    Object.keys(latest).forEach(function(bid) {
-      const sub = latest[bid];
+    Object.keys(byBooth).forEach(function(bid) {
       const booth = state.exhibitors.find(function(e) { return e.id === bid; });
-      if (booth) {
-        booth.salesDay1 = Number(sub.day1) || 0;
-        booth.salesDay2 = Number(sub.day2) || 0;
-        imported.push({ id: bid, name: booth.name, d1: booth.salesDay1, d2: booth.salesDay2 });
-      } else {
-        unmatched.push(bid);
-      }
+      if (!booth) { unmatched.push(bid); return; }
+      const list = byBooth[bid].slice().sort(function(a, b) {
+        return String(a.submittedAt||'').localeCompare(String(b.submittedAt||''));
+      });
+      let changed = false;
+      list.forEach(function(s) {
+        const d1 = Number(s.day1) || 0;
+        const d2 = Number(s.day2) || 0;
+        if (d1 > 0) { booth.salesDay1 = d1; changed = true; }
+        if (d2 > 0) { booth.salesDay2 = d2; changed = true; }
+      });
+      if (changed) imported.push({ id: bid, name: booth.name, d1: booth.salesDay1, d2: booth.salesDay2 });
     });
     state.settings.lastSalesImport = new Date().toISOString();
     saveState();
