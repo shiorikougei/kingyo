@@ -556,6 +556,7 @@ details[open] summary { margin-bottom: 10px; }
       <span class="template-chip" onclick="openSendModal('performer',{presetTemplate:'スケジュール確認'})">📅 スケジュール確認</span>
       <span class="template-chip" onclick="openSendModal('performer',{presetTemplate:'リマインダー'})">🔔 前日リマインド</span>
       <span class="template-chip" onclick="openSendModal('performer',{presetTemplate:'お礼'})">🙏 出演後お礼</span>
+      <span class="template-chip" onclick="openSendModal('performer',{presetTemplate:'ポスター素材依頼'})">🖼 ポスター素材依頼</span>
       <span class="template-chip" style="background:#D63031;color:white;border-color:#D63031" onclick="openSendModal('performer')">📢 送信先を選んで送る</span>
     </div>
   </div>
@@ -922,6 +923,7 @@ const messageTemplates = {
   'スケジュール確認': `{名前}様\n\nお世話になっております。\n金魚祭り当日のタイムスケジュールを下記の通り共有いたします。\n\n■ 当日入り時間：\n■ リハーサル：\n■ 本番開始：\n■ 撤収：\n\nご確認のうえ、修正点があればお知らせください。`,
   'リマインダー': `{名前}様\n\n明日の出演、よろしくお願いいたします。\n\n■ 集合時間：\n■ 集合場所：\n■ 当日の連絡先：\n\nお気をつけてお越しください。`,
   'お礼': `{名前}様\n\n本日は金魚祭りにご出演いただき誠にありがとうございました。\nおかげさまで大盛況のうちに終えることができました。\n\n■ お支払い予定日：\n■ 振込先確認：\n\n今後ともよろしくお願いいたします。`,
+  'ポスター素材依頼': `{名前}様\n\nお世話になっております、金魚祭り実行委員会です。\nこの度はご出演いただきありがとうございます。\n\nポスターやSNSに掲載させていただく、宣伝用のお写真・動画のご提供をお願いできますでしょうか。\n\n■ ご提供いただきたいもの：宣伝用の写真・動画\n■ 提出期限：◯月◯日まで\n■ 送り方：このトークにそのまま添付してください\n\nご協力よろしくお願いいたします。`,
   '出展募集': `{名前}様\n\n金魚祭り実行委員会です。\nこの度、◯月◯日開催の金魚祭りへの出展者を募集しております。\n\n■ 出展料：1日 2,500円 / 2日 5,000円\n■ 売上歩合：10%（自己申告制）\n\n▼ 出展のお申込みはこちらのフォームから\nhttps://kingyo-uriage.shiorikougei.workers.dev/?form=shutten\n\nご検討よろしくお願いいたします。`,
   '出展確定通知': `{名前}様\n\nお世話になっております。\nこの度はご出展のお申込みありがとうございます。下記の通り確定いたしました。\n\n■ ブース番号：{ブース番号}\n■ 参加日数：\n■ 出展料：\n■ 搬入時間：\n\n後日詳細をご案内します。`,
   '搬入案内': `{名前}様\n\nブース搬入の詳細をお送りいたします。\n\n■ ブース番号：{ブース番号}\n■ 搬入時間：\n■ 搬入場所：\n■ 駐車場：\n■ 当日の連絡先：\n\nお気をつけてお越しください。`,
@@ -1578,11 +1580,11 @@ async function importPerformerApps() {
         type: '出演料',
         detail: a.detail || '',
         paymentType: '交渉中',
-        days: a.days === 'both' ? 2 : (Number(a.days) || 1),
+        days: 1,
         fee: 0, lodging: 0, transport: 0, transportNote: '',
         status: '交渉中',
         lineChatUrl: '',
-        lineNote: '【出演応募フォームより】連絡担当: ' + (a.contact||'') + ' / TEL: ' + (a.phone||'') + (a.note ? '\n' + a.note : ''),
+        lineNote: '【出演応募フォームより】連絡担当: ' + (a.contact||'') + ' / TEL: ' + (a.phone||'') + '\nSNS素材の提供: ' + (a.snsMedia || '未回答') + (a.note ? '\n' + a.note : ''),
         lastContact: '', nextContact: ''
       });
       added.push(a.name || '(名前未記入)');
@@ -2221,7 +2223,7 @@ function openSendModal(type, options) {
   options = options || {};
   const isPerf = type === 'performer';
   const list = isPerf ? state.performers : state.exhibitors;
-  const perfTemplates = ['出演依頼','スケジュール確認','リマインダー','お礼'];
+  const perfTemplates = ['出演依頼','スケジュール確認','リマインダー','お礼','ポスター素材依頼'];
   const exhTemplates = ['出展募集','出展確定通知','搬入案内','売上報告依頼'];
   const templates = isPerf ? perfTemplates : exhTemplates;
   const presetTemplate = options.presetTemplate || templates[0];
