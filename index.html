@@ -352,7 +352,7 @@ details[open] summary { margin-bottom: 10px; }
 /* ==== Login Screen ==== */
 .login-screen {
   position: fixed; inset: 0;
-  background: linear-gradient(135deg, #D63031 0%, #E17055 100%);
+  background: linear-gradient(160deg, #FDF2E9 0%, #F8E6DA 45%, #E7F2F0 100%);
   display: flex; align-items: center; justify-content: center;
   z-index: 9999;
   font-family: inherit;
@@ -367,7 +367,8 @@ details[open] summary { margin-bottom: 10px; }
   text-align: center;
   width: 100%;
   max-width: 380px;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.22);
+  border-top: 4px solid #E8896B;
+  box-shadow: 0 10px 36px rgba(180,120,90,0.18);
 }
 .login-card .emoji { font-size: 44px; margin-bottom: 4px; }
 .login-card h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; color: #2C3E50; }
@@ -707,6 +708,8 @@ details[open] summary { margin-bottom: 10px; }
 const JSONBIN_BIN_ID = '6a0c68fdee5a733b12e4c68e';
 const JSONBIN_KEY = '$2a$10$sxvanzTwcCEM.CgvGEtsHO3Ul5dJwxHLeQFUbwqH3NaROs0knmCS.';
 const APP_PASSWORD = 'kingyo2026';
+const GEMINI_API_KEY = 'AIzaSyD45XjdbxzaktspqaCq70oTw4Ur6WJRjYE';
+const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
 let isLoggedIn = false;
 let saveTimer = null;
 let isLoadingFromServer = false;
@@ -1649,7 +1652,7 @@ function completeTask(idx) {
 function renderMeetings() {
   const search = document.getElementById('meetingSearch').value.trim().toLowerCase();
   let list = state.meetings.map((m,i) => ({...m, _idx:i}));
-  if (search) list = list.filter(m => (m.title+m.agenda+m.decisions+m.actions+m.attendees).toLowerCase().includes(search));
+  if (search) list = list.filter(m => (m.title+m.agenda+m.decisions+m.actions+m.attendees+(m.fullText||'')).toLowerCase().includes(search));
   list.sort((a,b) => (b.date||'').localeCompare(a.date||''));
 
   const container = document.getElementById('meetingsList');
@@ -1670,13 +1673,14 @@ function renderMeetings() {
       ${m.decisions?`<div class="meeting-section"><h4>決定事項</h4><div class="content">${escapeHtml(m.decisions)}</div></div>`:''}
       ${m.actions?`<div class="meeting-section"><h4>アクションアイテム</h4><div class="content">${escapeHtml(m.actions)}</div></div>`:''}
       ${m.next?`<div class="meeting-section"><h4>次回</h4><div class="content">${escapeHtml(m.next)}</div></div>`:''}
+      ${m.fullText?`<div class="meeting-section"><details><summary style="font-size:12px;color:#888;font-weight:700;text-transform:uppercase;letter-spacing:0.04em">議事録全文（PDF取り込み）</summary><div class="content" style="margin-top:8px;background:#FAF6EE;padding:10px;border-radius:6px">${escapeHtml(m.fullText)}</div></details></div>`:''}
     </div>
   `).join('');
 }
 
 function openMeetingEdit(idx) {
   const isNew = idx === undefined;
-  const m = isNew ? { date: new Date().toISOString().slice(0,10), title:'', attendees:'', agenda:'', decisions:'', actions:'', next:'' } : { ...state.meetings[idx] };
+  const m = isNew ? { date: new Date().toISOString().slice(0,10), title:'', attendees:'', agenda:'', decisions:'', actions:'', next:'', fullText:'' } : { ...state.meetings[idx] };
   showModal(`
     <button class="modal-close" onclick="closeModal()">×</button>
     <h3>${isNew?'議事録を追加':'議事録を編集'}</h3>
@@ -1699,6 +1703,16 @@ function openMeetingEdit(idx) {
     <div class="form-row">
       <label class="full">次回予定<input id="mt_next" value="${escapeHtml(m.next||'')}" placeholder="例：4/10 19:00〜 ココスにて"></label>
     </div>
+    <div class="form-row">
+      <label class="full">議事録の全文・メモ
+        <div style="margin:5px 0;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="btn gold small" id="mt_pdfBtn" onclick="importMeetingPdf()">📄 PDFから取り込み</button>
+          <button type="button" class="btn small" id="mt_aiBtn" onclick="aiSortMeeting()" style="background:#7C4DFF">🤖 AIで自動仕分け</button>
+        </div>
+        <div style="font-size:11px;color:#888;margin-bottom:4px">※ PDF取り込み or 下の欄に文章を入れて「AIで自動仕分け」を押すと、日付・議題・決定事項・アクションに自動で振り分けます</div>
+        <textarea id="mt_fullText" style="min-height:120px" placeholder="PDFから取り込んだ全文や、自由メモがここに入ります">${escapeHtml(m.fullText||'')}</textarea>
+      </label>
+    </div>
     <div class="form-actions">
       <button class="btn" onclick="saveMeeting(${isNew?'null':idx})">保存</button>
       <button class="btn ghost" onclick="meetingToTasks(${isNew?'null':idx})">アクションをタスクに転記</button>
@@ -1716,6 +1730,7 @@ function saveMeeting(idx) {
     decisions: document.getElementById('mt_decisions').value,
     actions: document.getElementById('mt_actions').value,
     next: document.getElementById('mt_next').value.trim(),
+    fullText: document.getElementById('mt_fullText').value,
   };
   if (!m.date) { toast('開催日を入力してください'); return; }
   if (idx === null) state.meetings.push(m);
@@ -1741,6 +1756,154 @@ function meetingToTasks(idx) {
   });
   saveState();
   toast(`${lines.length}件のタスクを追加しました`);
+}
+
+// ---- PDF取り込み ----
+function loadPdfJs() {
+  return new Promise((resolve, reject) => {
+    if (window.pdfjsLib) { resolve(); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.onload = () => {
+      try {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        resolve();
+      } catch (e) { reject(e); }
+    };
+    script.onerror = () => reject(new Error('PDF.jsの読み込みに失敗しました'));
+    document.head.appendChild(script);
+  });
+}
+
+async function extractPdfText(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    let pageText = '';
+    let lastY = null;
+    content.items.forEach(item => {
+      if (lastY !== null && Math.abs(item.transform[5] - lastY) > 3) {
+        pageText += '\n';
+      }
+      pageText += item.str;
+      lastY = item.transform[5];
+    });
+    fullText += pageText.trim();
+    if (i < pdf.numPages) fullText += '\n\n――― ' + (i+1) + 'ページ ―――\n\n';
+  }
+  return fullText.trim();
+}
+
+function importMeetingPdf() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/pdf,.pdf';
+  input.onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const btn = document.getElementById('mt_pdfBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '読み込み中...'; }
+    try {
+      await loadPdfJs();
+      const text = await extractPdfText(file);
+      if (!text || text.replace(/[\s―ページ0-9]/g, '').length < 3) {
+        toast('文字が抽出できませんでした。スキャン画像のPDFかもしれません');
+      } else {
+        const ta = document.getElementById('mt_fullText');
+        if (ta) {
+          ta.value = (ta.value.trim() ? ta.value.trim() + '\n\n' : '') + text;
+          toast('PDFの文字を取り込みました。「🤖 AIで自動仕分け」も使えます');
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast('PDFの読み込みに失敗しました（通信環境をご確認ください）');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '📄 PDFから取り込み'; }
+    }
+  };
+  input.click();
+}
+
+// ---- AI自動仕分け（Gemini） ----
+async function callGeminiSort(text) {
+  const prompt = `あなたは会議の議事録を整理するアシスタントです。以下の議事録テキストを読んで、内容を構造化してください。\n\n各項目の指示:\n- date: 開催日。YYYY-MM-DD形式（例 2026-05-20）。年が不明なら2026年とする。日付が全く不明なら空文字\n- title: 会議の名称（例「第3回 実行委員会」）。不明なら空文字\n- attendees: 出席者名。カンマ区切り。不明なら空文字\n- agenda: 議題・話し合った内容。項目ごとに改行で区切る\n- decisions: 決定事項。項目ごとに改行で区切る\n- actions: アクションアイテム（誰が・何を・いつまでに）。項目ごとに改行で区切る\n- next: 次回の開催予定（日時・場所）。不明なら空文字\n\n議事録テキスト:\n"""\n${text}\n"""`;
+
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'OBJECT',
+        properties: {
+          date: { type: 'STRING' },
+          title: { type: 'STRING' },
+          attendees: { type: 'STRING' },
+          agenda: { type: 'STRING' },
+          decisions: { type: 'STRING' },
+          actions: { type: 'STRING' },
+          next: { type: 'STRING' },
+        },
+      },
+    },
+  });
+
+  let lastErr;
+  for (const model of GEMINI_MODELS) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+      if (res.status === 404) { lastErr = new Error('モデル ' + model + ' が見つかりません'); continue; }
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error('APIエラー ' + res.status + ' ' + t.slice(0, 120));
+      }
+      const data = await res.json();
+      const out = data.candidates[0].content.parts[0].text;
+      return JSON.parse(out);
+    } catch (e) {
+      lastErr = e;
+      if (!String(e.message).includes('見つかりません')) throw e;
+    }
+  }
+  throw lastErr || new Error('すべてのモデルで失敗しました');
+}
+
+async function aiSortMeeting() {
+  const ta = document.getElementById('mt_fullText');
+  const text = ta ? ta.value.trim() : '';
+  if (!text) { toast('先に「議事録の全文・メモ」欄に文章を入れてください（PDF取り込み or 貼り付け）'); return; }
+
+  const targetIds = ['mt_title','mt_attendees','mt_agenda','mt_decisions','mt_actions','mt_next'];
+  const willOverwrite = targetIds.some(id => { const el = document.getElementById(id); return el && el.value.trim(); });
+  if (willOverwrite && !confirm('議題・決定事項などの既存の入力を、AIの仕分け結果で上書きします。よろしいですか？')) return;
+
+  const btn = document.getElementById('mt_aiBtn');
+  btn.disabled = true;
+  btn.textContent = '🤖 仕分け中...';
+  try {
+    const r = await callGeminiSort(text);
+    if (r.date && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) document.getElementById('mt_date').value = r.date;
+    if (r.title) document.getElementById('mt_title').value = r.title;
+    if (r.attendees) document.getElementById('mt_attendees').value = r.attendees;
+    if (r.agenda) document.getElementById('mt_agenda').value = r.agenda;
+    if (r.decisions) document.getElementById('mt_decisions').value = r.decisions;
+    if (r.actions) document.getElementById('mt_actions').value = r.actions;
+    if (r.next) document.getElementById('mt_next').value = r.next;
+    toast('AIが仕分けしました。内容を確認して保存してください');
+  } catch (e) {
+    console.error(e);
+    toast('AI仕分けに失敗しました：' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🤖 AIで自動仕分け';
+  }
 }
 
 // ============================================================
