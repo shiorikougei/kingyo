@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -565,6 +564,11 @@ details[open] summary { margin-bottom: 10px; }
     <select id="perfFilterStatus" onchange="renderPerformers()">
       <option value="">すべての状態</option>
       <option>未連絡</option><option>交渉中</option><option>確定</option><option>辞退</option><option>完了</option>
+    </select>
+    <select id="perfFilterLine" onchange="renderPerformers()">
+      <option value="">LINE：すべて</option>
+      <option value="yes">💬 LINE登録済み</option>
+      <option value="no">○ LINE未設定</option>
     </select>
     <input class="search" id="perfSearch" placeholder="名前・内容で検索..." oninput="renderPerformers()">
     <div class="spacer"></div>
@@ -1207,9 +1211,12 @@ function deleteExpense(idx) {
 // ============================================================
 function renderPerformers() {
   const filter = document.getElementById('perfFilterStatus').value;
+  const filterLine = document.getElementById('perfFilterLine').value;
   const search = document.getElementById('perfSearch').value.trim().toLowerCase();
   let list = state.performers.map((p, i) => ({ ...p, _idx: i }));
   if (filter) list = list.filter(p => p.status === filter);
+  if (filterLine === 'yes') list = list.filter(p => p.lineChatUrl);
+  if (filterLine === 'no') list = list.filter(p => !p.lineChatUrl);
   if (search) list = list.filter(p => (p.name + p.detail + p.lineNote).toLowerCase().includes(search));
 
   const rows = list.length === 0
@@ -1235,7 +1242,7 @@ function renderPerformers() {
       }
       const totalCell = pType === '無償' ? '<span style="color:#999">—</span>' : (pType === '交渉中' ? '<span style="color:#B7950B">交渉中</span>' : fmt(total));
       return `<tr>
-        <td><strong>${escapeHtml(p.name)}</strong><br><span style="font-size:11px;color:#999">${escapeHtml(p.type)}</span></td>
+        <td><strong>${escapeHtml(p.name)}</strong>${p.lineChatUrl?' <span style="background:#06C755;color:white;font-size:9px;padding:1px 6px;border-radius:999px;font-weight:700;letter-spacing:0.05em;vertical-align:1px">LINE</span>':''}<br><span style="font-size:11px;color:#999">${escapeHtml(p.type)}</span></td>
         <td>${escapeHtml(p.detail || '-')}</td>
         <td>${p.days||0}日</td>
         <td style="min-width:200px">${payCell}</td>
@@ -1361,7 +1368,7 @@ function renderExhibitors() {
   const grid = document.getElementById('boothGrid');
   grid.innerHTML = state.exhibitors.map((b, i) => `
     <div class="booth ${b.name?'has-data':''} ${b.status}" onclick="openExhibitorEdit(${i})">
-      <div class="booth-id">${b.id}</div>
+      <div class="booth-id" style="display:flex;justify-content:space-between;align-items:center;gap:4px">${b.id}${b.lineChatUrl?'<span style="background:#06C755;color:white;font-size:9px;padding:1px 5px;border-radius:999px;font-weight:700;letter-spacing:0.05em">LINE</span>':''}</div>
       <div class="booth-name">${escapeHtml(b.name) || '<span style="color:#BDC3C7">空き</span>'}</div>
       ${b.fee?`<div class="booth-fee">¥${b.fee.toLocaleString()} / ${b.days}日</div>`:''}
       ${b.name?`<div style="margin-top:6px"><span class="status-badge status-${b.status}">${b.status}</span></div>`:''}
