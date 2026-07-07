@@ -1201,7 +1201,7 @@ function renderAccounting() {
           : `<button class="btn small" onclick="toggleExpenseReimbursed(${realIdx})">精算済に</button>`;
         advCell = `<div style="font-size:12px"><strong>${escapeHtml(e.advancedBy)}</strong> ${badge}<br><div style="margin-top:3px">${btn}</div></div>`;
       }
-      return `<tr><td>${e.date}</td><td>${escapeHtml(e.vendor)}</td><td>${escapeHtml(e.category)}</td><td class="num">${fmt(e.amount)}</td><td>${escapeHtml(e.method)}</td><td>${advCell}</td><td>${escapeHtml(e.note||'')} <button class="btn small danger" onclick="deleteExpense(${realIdx})">削除</button></td></tr>`;
+      return `<tr><td>${e.date}</td><td>${escapeHtml(e.vendor)}</td><td>${escapeHtml(e.category)}</td><td class="num">${fmt(e.amount)}</td><td>${escapeHtml(e.method)}</td><td>${advCell}</td><td>${escapeHtml(e.note||'')} <button class="btn small ghost" onclick="openExpenseEdit(${realIdx})">編集</button> <button class="btn small danger" onclick="deleteExpense(${realIdx})">削除</button></td></tr>`;
     }).join('');
   document.getElementById('expenseLogTable').innerHTML = `<thead><tr><th>日付</th><th>支払先</th><th>費目</th><th class="num">金額</th><th>方法</th><th>立替</th><th>メモ</th></tr></thead><tbody>${logRows}</tbody>`;
 }
@@ -1241,6 +1241,52 @@ function deleteExpense(idx) {
   state.expenseLog.splice(idx, 1);
   saveState();
   renderAccounting();
+}
+function openExpenseEdit(idx) {
+  const e = state.expenseLog[idx];
+  if (!e) return;
+  const categories = state.settings.expense.map(x => `<option ${x.name===e.category?'selected':''}>${escapeHtml(x.name)}</option>`).join('');
+  const methods = ['現金','クレジットカード','銀行振込','その他'].map(m => `<option ${m===e.method?'selected':''}>${m}</option>`).join('');
+  showModal(`
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>支出を編集</h3>
+    <div class="form-row">
+      <label>支払日<input type="date" id="exe_date" value="${e.date||''}"></label>
+      <label>支払先<input type="text" id="exe_vendor" value="${escapeHtml(e.vendor||'')}"></label>
+      <label>費目<select id="exe_category">${categories}</select></label>
+      <label>金額<input type="number" id="exe_amount" value="${e.amount||0}"></label>
+      <label>支払方法<select id="exe_method">${methods}</select></label>
+      <label>立替者（該当時のみ）<input type="text" id="exe_advancedBy" value="${escapeHtml(e.advancedBy||'')}"></label>
+      <label class="full">メモ<input type="text" id="exe_note" value="${escapeHtml(e.note||'')}"></label>
+    </div>
+    ${e.advancedBy ? `<div class="form-row"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="exe_reimbursed" ${e.reimbursed?'checked':''}> 精算済（返済完了）にする</label></div>` : ''}
+    <div class="form-actions">
+      <button class="btn" onclick="saveExpenseEdit(${idx})">保存</button>
+      <button class="btn danger" onclick="closeModal();deleteExpense(${idx})">削除</button>
+      <button class="btn secondary" onclick="closeModal()">キャンセル</button>
+    </div>
+  `);
+}
+function saveExpenseEdit(idx) {
+  const e = state.expenseLog[idx];
+  if (!e) return;
+  const vendor = document.getElementById('exe_vendor').value.trim();
+  const amount = Number(document.getElementById('exe_amount').value) || 0;
+  if (!vendor || !amount) { toast('支払先と金額を入力してください'); return; }
+  e.date = document.getElementById('exe_date').value || e.date;
+  e.vendor = vendor;
+  e.category = document.getElementById('exe_category').value;
+  e.amount = amount;
+  e.method = document.getElementById('exe_method').value;
+  e.advancedBy = document.getElementById('exe_advancedBy').value.trim();
+  e.note = document.getElementById('exe_note').value.trim();
+  const rb = document.getElementById('exe_reimbursed');
+  if (rb) e.reimbursed = rb.checked;
+  if (!e.advancedBy) e.reimbursed = false;
+  saveState();
+  closeModal();
+  renderAccounting();
+  toast('編集を保存しました');
 }
 
 // ============================================================
