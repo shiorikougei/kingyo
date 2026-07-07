@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -530,6 +531,7 @@ details[open] summary { margin-bottom: 10px; }
           <option>現金</option><option>クレジットカード</option><option>銀行振込</option><option>その他</option>
         </select>
       </label>
+      <label>立替者（誰かが立て替えた場合のみ）<input type="text" id="exAdvancedBy" placeholder="例：山田"></label>
       <label class="full">メモ<input type="text" id="exNote" placeholder="領収書の保管先など"></label>
     </div>
     <div class="form-actions">
@@ -540,6 +542,7 @@ details[open] summary { margin-bottom: 10px; }
 
   <div class="panel">
     <h3>記録した支出（アプリ内）</h3>
+    <div id="advanceSummary" style="font-size:13px;margin-bottom:10px"></div>
     <table class="data-table" id="expenseLogTable"></table>
   </div>
 </section>
@@ -1170,17 +1173,41 @@ function renderAccounting() {
   document.getElementById('acExpenseBudget').textContent = fmt(expenseBudget);
   document.getElementById('acExpenseActual').textContent = fmt(expenseActual);
 
+  // Advance summary
+  const advList = state.expenseLog.filter(e => e.advancedBy && !e.reimbursed);
+  const advTotal = advList.reduce((s, e) => s + (Number(e.amount)||0), 0);
+  const advByPerson = {};
+  advList.forEach(e => { advByPerson[e.advancedBy] = (advByPerson[e.advancedBy]||0) + (Number(e.amount)||0); });
+  const advSum = document.getElementById('advanceSummary');
+  if (advList.length === 0) {
+    advSum.innerHTML = `<span style="color:#27AE60;font-size:12px">✓ 未精算の立替はありません</span>`;
+  } else {
+    const perPerson = Object.keys(advByPerson).map(n => `${escapeHtml(n)} ${fmt(advByPerson[n])}`).join(' / ');
+    advSum.innerHTML = `<span style="background:#FEF5E7;color:#B7950B;padding:6px 12px;border-radius:6px;font-weight:600">💸 立替中 合計 ${fmt(advTotal)}（${advList.length}件）</span> <span style="color:#666;margin-left:8px;font-size:12px">内訳：${perPerson}</span>`;
+  }
   // Expense log
   const logRows = state.expenseLog.length === 0
-    ? `<tr><td colspan="6" class="empty">記録された支出はまだありません</td></tr>`
+    ? `<tr><td colspan="7" class="empty">記録された支出はまだありません</td></tr>`
     : [...state.expenseLog].reverse().map((e, idx) => {
       const realIdx = state.expenseLog.length - 1 - idx;
-      return `<tr><td>${e.date}</td><td>${escapeHtml(e.vendor)}</td><td>${escapeHtml(e.category)}</td><td class="num">${fmt(e.amount)}</td><td>${escapeHtml(e.method)}</td><td>${escapeHtml(e.note||'')} <button class="btn small danger" onclick="deleteExpense(${realIdx})">削除</button></td></tr>`;
+      let advCell = '<span style="color:#BDC3C7;font-size:12px">—</span>';
+      if (e.advancedBy) {
+        const paid = e.reimbursed;
+        const badge = paid
+          ? '<span class="status-badge status-完了">✓ 精算済</span>'
+          : '<span class="status-badge" style="background:#FEF5E7;color:#B7950B">💸 立替中</span>';
+        const btn = paid
+          ? `<button class="btn small ghost" onclick="toggleExpenseReimbursed(${realIdx})">戻す</button>`
+          : `<button class="btn small" onclick="toggleExpenseReimbursed(${realIdx})">精算済に</button>`;
+        advCell = `<div style="font-size:12px"><strong>${escapeHtml(e.advancedBy)}</strong> ${badge}<br><div style="margin-top:3px">${btn}</div></div>`;
+      }
+      return `<tr><td>${e.date}</td><td>${escapeHtml(e.vendor)}</td><td>${escapeHtml(e.category)}</td><td class="num">${fmt(e.amount)}</td><td>${escapeHtml(e.method)}</td><td>${advCell}</td><td>${escapeHtml(e.note||'')} <button class="btn small danger" onclick="deleteExpense(${realIdx})">削除</button></td></tr>`;
     }).join('');
-  document.getElementById('expenseLogTable').innerHTML = `<thead><tr><th>日付</th><th>支払先</th><th>費目</th><th class="num">金額</th><th>方法</th><th>メモ</th></tr></thead><tbody>${logRows}</tbody>`;
+  document.getElementById('expenseLogTable').innerHTML = `<thead><tr><th>日付</th><th>支払先</th><th>費目</th><th class="num">金額</th><th>方法</th><th>立替</th><th>メモ</th></tr></thead><tbody>${logRows}</tbody>`;
 }
 
 function addExpense() {
+  const advancedBy = document.getElementById('exAdvancedBy').value.trim();
   const e = {
     date: document.getElementById('exDate').value || new Date().toISOString().slice(0,10),
     vendor: document.getElementById('exVendor').value.trim(),
@@ -1188,16 +1215,26 @@ function addExpense() {
     amount: Number(document.getElementById('exAmount').value) || 0,
     method: document.getElementById('exMethod').value,
     note: document.getElementById('exNote').value.trim(),
+    advancedBy,
+    reimbursed: false,
   };
   if (!e.vendor || !e.amount) { toast('支払先と金額を入力してください'); return; }
   state.expenseLog.push(e);
   saveState();
   clearExpenseForm();
   renderAccounting();
-  toast('支出を追加しました');
+  toast(advancedBy ? `支出を追加しました（${advancedBy} さんの立替として記録）` : '支出を追加しました');
 }
 function clearExpenseForm() {
-  ['exDate','exVendor','exAmount','exNote'].forEach(id => document.getElementById(id).value = '');
+  ['exDate','exVendor','exAmount','exNote','exAdvancedBy'].forEach(id => document.getElementById(id).value = '');
+}
+function toggleExpenseReimbursed(idx) {
+  const e = state.expenseLog[idx];
+  if (!e) return;
+  e.reimbursed = !e.reimbursed;
+  saveState();
+  renderAccounting();
+  toast(e.reimbursed ? '精算済にしました' : '立替中に戻しました');
 }
 function deleteExpense(idx) {
   if (!confirm('この支出を削除しますか？')) return;
