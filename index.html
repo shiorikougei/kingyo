@@ -606,6 +606,8 @@ details[open] summary { margin-bottom: 10px; }
     <span class="item"><span class="dot" style="background:#95A5A6"></span>辞退</span>
   </div>
 
+  <div class="panel" id="dayBreakdownPanel" style="display:none"></div>
+
   <div class="panel">
     <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">ブース配置（クリックで編集）<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small" onclick="importExhibitorApps()">📥 出展申込を取り込む</button><button class="btn small gold" onclick="importSalesReports()">📥 売上報告を取り込む</button><button class="btn small" onclick="addBooth()">＋ ブースを追加</button></span></h3>
     <div class="booth-grid" id="boothGrid"></div>
@@ -1448,6 +1450,51 @@ function deletePerformer(idx) {
 //                       EXHIBITORS
 // ============================================================
 function renderExhibitors() {
+  // Day breakdown
+  const namedBooths = state.exhibitors.filter(e => e.name);
+  const bothDay = namedBooths.filter(e => Number(e.days) === 2);
+  const day1Only = namedBooths.filter(e => Number(e.days) === 1 && e.whichDay === '1');
+  const day2Only = namedBooths.filter(e => Number(e.days) === 1 && e.whichDay === '2');
+  const unknownDay = namedBooths.filter(e => Number(e.days) === 1 && !e.whichDay);
+  const undecidedDays = namedBooths.filter(e => !Number(e.days));
+  const day1Count = bothDay.length + day1Only.length;
+  const day2Count = bothDay.length + day2Only.length;
+  const fd1 = getFestivalDate1();
+  const fd2 = state.settings.festivalDate2;
+  const fmtDay = d => d ? (new Date(d)).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) : '';
+  const d1Label = fmtDay(fd1) || '1日目';
+  const d2Label = fmtDay(fd2) || '2日目';
+  const dbp = document.getElementById('dayBreakdownPanel');
+  if (namedBooths.length === 0) {
+    dbp.style.display = 'none';
+  } else {
+    dbp.style.display = 'block';
+    dbp.innerHTML = `<h3>📅 日別ブース数</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
+        <div style="background:#FEF5E7;border-radius:8px;padding:12px;border-left:4px solid #E8896B">
+          <div style="font-size:11px;color:#888">1日目 ${d1Label}</div>
+          <div style="font-size:26px;font-weight:700;color:#2C3E50">${day1Count} <span style="font-size:12px;font-weight:normal;color:#666">ブース</span></div>
+          <div style="font-size:11px;color:#666">両日 ${bothDay.length}＋1日目のみ ${day1Only.length}</div>
+        </div>
+        <div style="background:#E8F4F8;border-radius:8px;padding:12px;border-left:4px solid #2980B9">
+          <div style="font-size:11px;color:#888">2日目 ${d2Label}</div>
+          <div style="font-size:26px;font-weight:700;color:#2C3E50">${day2Count} <span style="font-size:12px;font-weight:normal;color:#666">ブース</span></div>
+          <div style="font-size:11px;color:#666">両日 ${bothDay.length}＋2日目のみ ${day2Only.length}</div>
+        </div>
+        ${unknownDay.length ? `<div style="background:#FADBD8;border-radius:8px;padding:12px;border-left:4px solid #C0392B">
+          <div style="font-size:11px;color:#888">日付未確定（1日のみ）</div>
+          <div style="font-size:26px;font-weight:700;color:#2C3E50">${unknownDay.length} <span style="font-size:12px;font-weight:normal;color:#666">ブース</span></div>
+          <div style="font-size:11px;color:#666">どちらの日か要確認</div>
+        </div>` : ''}
+        ${undecidedDays.length ? `<div style="background:#EAECEE;border-radius:8px;padding:12px;border-left:4px solid #7F8C8D">
+          <div style="font-size:11px;color:#888">参加日数 未定</div>
+          <div style="font-size:26px;font-weight:700;color:#2C3E50">${undecidedDays.length} <span style="font-size:12px;font-weight:normal;color:#666">ブース</span></div>
+          <div style="font-size:11px;color:#666">1日/2日 未確認</div>
+        </div>` : ''}
+      </div>
+      ${unknownDay.length ? `<div style="margin-top:10px;font-size:12px;color:#C0392B;padding:8px 12px;background:#FDEDEC;border-radius:6px">⚠ 日付未確定：${unknownDay.map(e => escapeHtml(e.id + ' ' + e.name)).join(' / ')}<br>編集画面で「何日目に参加？」を設定してください</div>` : ''}`;
+  }
+
   const grid = document.getElementById('boothGrid');
   grid.innerHTML = state.exhibitors.map((b, i) => `
     <div class="booth ${b.name?'has-data':''} ${b.status}" onclick="openExhibitorEdit(${i})">
@@ -1482,6 +1529,7 @@ function openExhibitorEdit(idx) {
     </div>
     <div class="form-row">
       <label>参加日数<select id="bx_days"><option value="0">未定</option><option value="1">1日</option><option value="2">2日</option></select></label>
+      <label id="bx_whichDayWrap">何日目に参加？<select id="bx_whichDay"><option value="">未確定</option><option value="1">1日目のみ</option><option value="2">2日目のみ</option></select></label>
       <label>出展料<input type="number" id="bx_fee" value="${b.fee||0}"></label>
       <label>歩合率（%）<input type="number" id="bx_rate" value="${b.commissionRate||10}"></label>
     </div>
@@ -1519,7 +1567,12 @@ function openExhibitorEdit(idx) {
     const d = Number(e.target.value);
     if (d === 1 && !document.getElementById('bx_fee').value) document.getElementById('bx_fee').value = 2500;
     if (d === 2 && !document.getElementById('bx_fee').value) document.getElementById('bx_fee').value = 5000;
+    const w = document.getElementById('bx_whichDayWrap');
+    if (w) w.style.display = d === 1 ? '' : 'none';
   });
+  document.getElementById('bx_whichDay').value = b.whichDay || '';
+  const whichWrap = document.getElementById('bx_whichDayWrap');
+  if (whichWrap) whichWrap.style.display = Number(b.days) === 1 ? '' : 'none';
   if ((state.settings.festivalDays||1) < 2) {
     const w = document.getElementById('bx_day2SalesWrap');
     if (w) w.style.display = 'none';
@@ -1730,6 +1783,7 @@ function saveExhibitor(idx) {
     category: document.getElementById('bx_cat').value.trim(),
     status: document.getElementById('bx_status').value,
     days: Number(document.getElementById('bx_days').value),
+    whichDay: Number(document.getElementById('bx_days').value) === 1 ? document.getElementById('bx_whichDay').value : '',
     fee: Number(document.getElementById('bx_fee').value) || 0,
     commissionRate: Number(document.getElementById('bx_rate').value) || 10,
     salesDay1: Number(document.getElementById('bx_salesDay1').value) || 0,
