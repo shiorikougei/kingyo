@@ -1,5 +1,4 @@
 
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -596,6 +595,7 @@ details[open] summary { margin-bottom: 10px; }
       <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'出展確定通知'})">✅ 出展確定通知</span>
       <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'搬入案内'})">🚛 搬入案内</span>
       <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'売上報告依頼'})">📊 売上報告依頼</span>
+      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'ビンゴ景品協賛依頼'})">🎁 ビンゴ景品協賛依頼</span>
       <span class="template-chip" style="background:#D63031;color:white;border-color:#D63031" onclick="openSendModal('exhibitor')">📢 送信先を選んで送る</span>
     </div>
   </div>
@@ -620,6 +620,8 @@ details[open] summary { margin-bottom: 10px; }
     <div class="card blue"><div class="label">出展料収入見込</div><div class="value" id="exFeeExpected">¥0</div></div>
     <div class="card green"><div class="label">売上歩合見込</div><div class="value" id="exCommissionExpected">¥0</div></div>
   </div>
+
+  <div class="panel" id="bingoPanel" style="display:none"></div>
 </section>
 
 <!-- ============ SPONSORS ============ -->
@@ -938,6 +940,7 @@ const messageTemplates = {
   '出展確定通知': `{名前}様\n\nお世話になっております。\nこの度はご出展のお申込みありがとうございます。下記の通り確定いたしました。\n\n■ ブース番号：{ブース番号}\n■ 参加日数：\n■ 出展料：\n■ 搬入時間：\n\n後日詳細をご案内します。`,
   '搬入案内': `{名前}様\n\nブース搬入の詳細をお送りいたします。\n\n■ ブース番号：{ブース番号}\n■ 搬入時間：\n■ 搬入場所：\n■ 駐車場：\n■ 当日の連絡先：\n\nお気をつけてお越しください。`,
   '売上報告依頼': `{名前}様\n\nお疲れ様でした。当日の売上の自己申告をお願いいたします。\n\n▼ こちらのフォームからご報告ください\nhttps://kingyo-uriage.shiorikougei.workers.dev/\n\n（ブース番号：{ブース番号}）\n\nご協力ありがとうございます。`,
+  'ビンゴ景品協賛依頼': `{名前}様\n\nいつもお世話になっております、金魚祭り実行委員会です🎏\n\n当日のビンゴ大会用の景品協賛について、お願いのご連絡です。\n\n▼ こちらのフォームからご回答をお願いいたします\nhttps://kingyo-uriage.shiorikougei.workers.dev/?form=bingo\n\n■ 目安：原価500円程度のもの\n■ ご協力方法は2択：\n　①販売商品で協賛（商品名・個数をご記入）\n　②500円で協賛\n\nご負担のない範囲でご協力いただけますと大変助かります。\nどうぞよろしくお願いいたします。`,
 };
 
 let state = null; // initialized after login via bootApp()
@@ -1516,6 +1519,32 @@ function renderExhibitors() {
   document.getElementById('exNegotiating').textContent = negotiating;
   document.getElementById('exFeeExpected').textContent = fmt(expectedFee);
   document.getElementById('exCommissionExpected').textContent = fmt(expectedCommission);
+
+  // Bingo prize panel
+  const bp = document.getElementById('bingoPanel');
+  if (namedBooths.length === 0) {
+    bp.style.display = 'none';
+  } else {
+    bp.style.display = 'block';
+    const contribs = namedBooths.map(e => ({ id: e.id, name: e.name, type: e.bingoType || '', product: e.bingoProduct || '', count: e.bingoCount || 0, note: e.bingoNote || '' }));
+    const withResp = contribs.filter(c => c.type);
+    const items = withResp.filter(c => c.type === '販売商品');
+    const cash = withResp.filter(c => c.type === '500円協賛');
+    const noResp = contribs.filter(c => !c.type);
+    const cashAmount = cash.length * 500;
+    const totalItems = items.reduce((s, c) => s + (c.count || 0), 0);
+    bp.innerHTML = `<h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">🎁 ビンゴ景品協賛 一覧<button class="btn small gold" onclick="importBingoContributions()">📥 ビンゴ景品を取り込む</button></h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;font-size:13px;margin-bottom:12px">
+        <div style="background:#FEF5E7;border-radius:8px;padding:10px;border-left:4px solid #F39C12"><div style="font-size:11px;color:#888">回答済</div><div style="font-size:22px;font-weight:700">${withResp.length}<span style="font-size:12px;font-weight:normal;color:#666"> / ${namedBooths.length}店</span></div></div>
+        <div style="background:#E8F4F8;border-radius:8px;padding:10px;border-left:4px solid #2980B9"><div style="font-size:11px;color:#888">販売商品協賛</div><div style="font-size:22px;font-weight:700">${items.length}<span style="font-size:12px;font-weight:normal;color:#666"> 店 / 計 ${totalItems} 個</span></div></div>
+        <div style="background:#F4ECF7;border-radius:8px;padding:10px;border-left:4px solid #8E44AD"><div style="font-size:11px;color:#888">500円協賛</div><div style="font-size:22px;font-weight:700">${cash.length}<span style="font-size:12px;font-weight:normal;color:#666"> 店 / ${fmt(cashAmount)}</span></div></div>
+        ${noResp.length ? `<div style="background:#FADBD8;border-radius:8px;padding:10px;border-left:4px solid #C0392B"><div style="font-size:11px;color:#888">未回答</div><div style="font-size:22px;font-weight:700">${noResp.length}<span style="font-size:12px;font-weight:normal;color:#666"> 店</span></div></div>` : ''}
+      </div>
+      <details><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:6px 0;color:#2C3E50">📋 全店の協賛一覧を見る（${contribs.length}店）</summary>
+      <table class="data-table" style="margin-top:8px;font-size:12px"><thead><tr><th>ブース</th><th>出店名</th><th>協賛方法</th><th>商品名</th><th class="num">個数</th><th>備考</th></tr></thead><tbody>
+      ${contribs.map(c => `<tr style="${c.type?'':'opacity:0.55'}"><td><strong>${escapeHtml(c.id)}</strong></td><td>${escapeHtml(c.name)}</td><td>${c.type ? '<span class="status-badge status-完了">' + escapeHtml(c.type) + '</span>' : '<span class="status-badge status-未連絡">未回答</span>'}</td><td>${escapeHtml(c.product || '-')}</td><td class="num">${c.count || '-'}</td><td>${escapeHtml(c.note || '-')}</td></tr>`).join('')}
+      </tbody></table></details>`;
+  }
 }
 
 function openExhibitorEdit(idx) {
@@ -1656,6 +1685,65 @@ async function importSalesReports(forceAll) {
     console.error(e);
     showSyncStatus('error');
     toast('売上の取り込みに失敗しました：' + e.message);
+  }
+}
+
+async function importBingoContributions(forceAll) {
+  showSyncStatus('loading');
+  try {
+    const res = await fetch('https://api.jsonbin.io/v3/b/' + SUBMISSIONS_BIN_ID + '/latest?t=' + Date.now(), { headers: { 'X-Master-Key': JSONBIN_KEY } });
+    if (!res.ok) throw new Error('読み込み失敗 ' + res.status);
+    const data = await res.json();
+    const allSubs = Array.isArray((data.record||{}).bingoContributions) ? data.record.bingoContributions : [];
+    showSyncStatus('synced');
+    if (allSubs.length === 0) { toast('ビンゴ景品の回答はまだ届いていません'); return; }
+    const since = state.settings.lastBingoImport || '';
+    const subs = forceAll ? allSubs : allSubs.filter(function(s){ return String(s.submittedAt||'') > since; });
+    if (subs.length === 0) {
+      let h = '<button class="modal-close" onclick="closeModal()">×</button><h3>🎁 ビンゴ景品の取り込み</h3>';
+      h += '<p style="font-size:13px;color:#555">前回以降の新しい回答は届いていません。</p>';
+      h += '<div class="form-actions"><button class="btn ghost" onclick="importBingoContributions(true)">全' + allSubs.length + '件を取り込み直す</button><button class="btn secondary" onclick="closeModal()">閉じる</button></div>';
+      showModal(h);
+      return;
+    }
+    const latest = {};
+    subs.forEach(function(s){
+      const bid = String(s.boothId || '').trim();
+      if (!bid) return;
+      if (!latest[bid] || String(s.submittedAt||'') > String(latest[bid].submittedAt||'')) latest[bid] = s;
+    });
+    const imported = [];
+    const unmatched = [];
+    Object.keys(latest).forEach(function(bid){
+      const sub = latest[bid];
+      const booth = state.exhibitors.find(function(e){ return e.id === bid; });
+      if (booth) {
+        booth.bingoType = sub.contribType || '';
+        booth.bingoProduct = sub.productName || '';
+        booth.bingoCount = Number(sub.count) || 0;
+        booth.bingoNote = sub.note || '';
+        imported.push({ id: bid, name: booth.name, type: booth.bingoType, product: booth.bingoProduct, count: booth.bingoCount });
+      } else {
+        unmatched.push(bid);
+      }
+    });
+    state.settings.lastBingoImport = new Date().toISOString();
+    saveState();
+    renderExhibitors();
+    let html = '<button class="modal-close" onclick="closeModal()">×</button><h3>🎁 ビンゴ景品 取り込み結果</h3>';
+    html += '<p style="font-size:13px;color:#555">' + imported.length + '件の回答をブースに反映しました。</p>';
+    if (imported.length) {
+      html += '<table class="data-table"><thead><tr><th>ブース</th><th>協賛方法</th><th>商品名</th><th class="num">個数</th></tr></thead><tbody>';
+      html += imported.map(function(r){ return '<tr><td>' + escapeHtml(r.id + ' ' + (r.name||'')) + '</td><td>' + escapeHtml(r.type) + '</td><td>' + escapeHtml(r.product||'-') + '</td><td class="num">' + (r.count||'-') + '</td></tr>'; }).join('');
+      html += '</tbody></table>';
+    }
+    if (unmatched.length) html += '<p style="font-size:12px;color:#C0392B;margin-top:12px">⚠ 未マッチ：' + escapeHtml(unmatched.join(', ')) + '</p>';
+    html += '<div class="form-actions"><button class="btn secondary" onclick="closeModal()">閉じる</button></div>';
+    showModal(html);
+  } catch (e) {
+    console.error(e);
+    showSyncStatus('error');
+    toast('取り込みに失敗しました：' + e.message);
   }
 }
 
@@ -2369,7 +2457,7 @@ function openSendModal(type, options) {
   const isPerf = type === 'performer';
   const list = isPerf ? state.performers : state.exhibitors;
   const perfTemplates = ['出演依頼','スケジュール確認','リマインダー','お礼','ポスター素材依頼'];
-  const exhTemplates = ['出展募集','出展確定通知','搬入案内','売上報告依頼'];
+  const exhTemplates = ['出展募集','出展確定通知','搬入案内','売上報告依頼','ビンゴ景品協賛依頼'];
   const templates = isPerf ? perfTemplates : exhTemplates;
   const presetTemplate = options.presetTemplate || templates[0];
   const preselected = options.preselectedIdx !== undefined ? [options.preselectedIdx] : [];
@@ -2624,7 +2712,9 @@ function openSettings() {
         <strong>出演応募フォーム</strong><br>
         <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/?form=shutsuen" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0 8px">
         <strong>売上報告フォーム</strong><br>
-        <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0">
+        <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0 8px">
+        <strong>ビンゴ景品協賛フォーム</strong><br>
+        <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/?form=bingo" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0">
       </div>
     </details>
     <h3 style="margin-top:18px">予算（収入）</h3>
