@@ -465,7 +465,7 @@ details[open] summary { margin-bottom: 10px; }
   <button data-tab="dashboard" class="active">🏠 全体</button>
   <button data-tab="accounting">💰 会計</button>
   <button data-tab="performers">🎤 出演者</button>
-  <button data-tab="exhibitors">🏮 出展者</button>
+  <button data-tab="exhibitors">🏮 出店者</button>
   <button data-tab="sponsors">🤝 協賛</button>
   <button data-tab="staff">👥 スタッフ</button>
   <button data-tab="tasks">✅ タスク</button>
@@ -586,13 +586,13 @@ details[open] summary { margin-bottom: 10px; }
 
 <!-- ============ EXHIBITORS ============ -->
 <section class="tab-panel" id="tab-exhibitors">
-  <h2 class="section-title">出展者管理</h2>
+  <h2 class="section-title">出店者管理</h2>
 
   <div class="template-bar">
     <div class="label">LINE送信テンプレ（クリック → 送信先を選んで送る）</div>
     <div class="template-chips">
-      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'出展募集'})">📨 出展募集</span>
-      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'出展確定通知'})">✅ 出展確定通知</span>
+      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'出店募集'})">📨 出店募集</span>
+      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'出店確定通知'})">✅ 出店確定通知</span>
       <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'搬入案内'})">🚛 搬入案内</span>
       <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'売上報告依頼'})">📊 売上報告依頼</span>
       <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'ビンゴ景品協賛依頼'})">🎁 景品協賛＋SNS素材依頼</span>
@@ -610,14 +610,14 @@ details[open] summary { margin-bottom: 10px; }
   <div class="panel" id="dayBreakdownPanel" style="display:none"></div>
 
   <div class="panel">
-    <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">ブース配置（クリックで編集）<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small" onclick="importExhibitorApps()">📥 出展申込を取り込む</button><button class="btn small gold" onclick="importSalesReports()">📥 売上報告を取り込む</button><button class="btn small" onclick="addBooth()">＋ ブースを追加</button></span></h3>
+    <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">ブース配置（クリックで編集）<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small" onclick="importExhibitorApps()">📥 出店申込を取り込む</button><button class="btn small gold" onclick="importSalesReports()">📥 売上報告を取り込む</button><button class="btn small" onclick="addBooth()">＋ ブースを追加</button></span></h3>
     <div class="booth-grid" id="boothGrid"></div>
   </div>
 
   <div class="cards">
     <div class="card accent"><div class="label">確定ブース数</div><div class="value" id="exConfirmed">0</div><div class="sub" id="exTotal">/ 30</div></div>
     <div class="card gold"><div class="label">交渉中</div><div class="value" id="exNegotiating">0</div></div>
-    <div class="card blue"><div class="label">出展料収入見込</div><div class="value" id="exFeeExpected">¥0</div></div>
+    <div class="card blue"><div class="label">出店料収入見込</div><div class="value" id="exFeeExpected">¥0</div></div>
     <div class="card green"><div class="label">売上歩合見込</div><div class="value" id="exCommissionExpected">¥0</div></div>
   </div>
 
@@ -937,8 +937,8 @@ const messageTemplates = {
   'リマインダー': `{名前}様\n\n明日の出演、よろしくお願いいたします。\n\n■ 集合時間：\n■ 集合場所：\n■ 当日の連絡先：\n\nお気をつけてお越しください。`,
   'お礼': `{名前}様\n\n本日は金魚祭りにご出演いただき誠にありがとうございました。\nおかげさまで大盛況のうちに終えることができました。\n\n■ お支払い予定日：\n■ 振込先確認：\n\n今後ともよろしくお願いいたします。`,
   'ポスター素材依頼': `{名前}様\n\nお世話になっております、金魚祭り実行委員会です。\nこの度はご出演いただきありがとうございます。\n\nポスターやSNSに掲載させていただく、宣伝用のお写真・動画のご提供をお願いできますでしょうか。\n\n■ ご提供いただきたいもの：宣伝用の写真・動画\n■ 提出期限：◯月◯日まで\n■ 送り方：このトークにそのまま添付してください\n\nご協力よろしくお願いいたします。`,
-  '出展募集': `{名前}様\n\n金魚祭り実行委員会です。\nこの度、◯月◯日開催の金魚祭りへの出展者を募集しております。\n\n■ 出展料：1日 2,500円 / 2日 5,000円\n■ 売上歩合：10%（自己申告制）\n\n▼ 出展のお申込みはこちらのフォームから\nhttps://kingyo-uriage.shiorikougei.workers.dev/?form=shutten\n\nご検討よろしくお願いいたします。`,
-  '出展確定通知': `{名前}様\n\nお世話になっております。\nこの度はご出展のお申込みありがとうございます。下記の通り確定いたしました。\n\n■ ブース番号：{ブース番号}\n■ 参加日数：\n■ 出展料：\n■ 搬入時間：\n\n後日詳細をご案内します。`,
+  '出店募集': `{名前}様\n\n金魚祭り実行委員会です。\nこの度、◯月◯日開催の金魚祭りへの出店者を募集しております。\n\n■ 出店料：1日 2,500円 / 2日 5,000円\n■ 売上歩合：10%（自己申告制）\n\n▼ 出店のお申込みはこちらのフォームから\nhttps://kingyo-uriage.shiorikougei.workers.dev/?form=shutten\n\nご検討よろしくお願いいたします。`,
+  '出店確定通知': `{名前}様\n\nお世話になっております。\nこの度はご出店のお申込みありがとうございます。下記の通り確定いたしました。\n\n■ ブース番号：{ブース番号}\n■ 参加日数：\n■ 出店料：\n■ 搬入時間：\n\n後日詳細をご案内します。`,
   '搬入案内': `{名前}様\n\nブース搬入の詳細をお送りいたします。\n\n■ ブース番号：{ブース番号}\n■ 搬入時間：\n■ 搬入場所：\n■ 駐車場：\n■ 当日の連絡先：\n\nお気をつけてお越しください。`,
   '売上報告依頼': `{名前}様\n\nお疲れ様でした。当日の売上の自己申告をお願いいたします。\n\n▼ こちらのフォームからご報告ください\nhttps://kingyo-uriage.shiorikougei.workers.dev/\n\n（ブース番号：{ブース番号}）\n\nご協力ありがとうございます。`,
   'ビンゴ景品協賛依頼': `{名前}様\n\nいつもお世話になっております、金魚祭り実行委員会です🎏\n\n当日の景品協賛、およびSNS投稿用の素材提供について、まとめてお願いのご連絡です。\n\n━━━━━━━━━━\n【① ビンゴ大会・抽選会 景品協賛のお願い】\n━━━━━━━━━━\n\nブース並びにキッチンカーを出店される各社より、販売商品現物を2〜3品（原価500円以内）、景品として協賛をお願いします。\n飲食物でのご提供の場合は、本部で交換チケットをお作りし、当選者にお渡しして店頭にて引き換えさせていただきます。\n（交換チケットの有効期限は当日のみです）\n\n▼ こちらのフォームからご回答をお願いいたします\nhttps://kingyo-uriage.shiorikougei.workers.dev/?form=bingo\n\n■ ご協力方法：\n　①販売商品で協賛\n　②その他の物品で協賛（野菜・お米・花など）\n　③500円で協賛\n\n━━━━━━━━━━\n【② SNS素材のご提供のお願い】\n━━━━━━━━━━\n\n事前のInstagram告知に使わせていただく素材のご提供もお願いいたします。\n動画・画像どちらでもOKです。\n\n▼ 動画素材の場合\n・店舗紹介＋当日販売するものの紹介動画\n・編集はこちらで対応します\n・Instagramリールで投稿させていただきます\n\n▼ 画像素材の場合\n・3〜5枚程度あると嬉しいです\n・販売するものの紹介文もあれば添えてください\n・こちらで動画化して、Instagramリールで投稿します\n\n▼ Instagramアカウントについて\n・アカウントをお持ちで「メンションOK」の方は、アカウントIDもあわせてお送りください（例：@your_id）\n\n素材はこのトークにそのまま添付してお送りください🙏\n\n━━━━━━━━━━\n\nお手数をおかけしますが、ご負担のない範囲でご協力いただけますと大変助かります。\nどうぞよろしくお願いいたします。`,
@@ -1057,7 +1057,7 @@ function renderDashboard() {
   const cards = document.getElementById('dashboardCards');
   cards.innerHTML = `
     <div class="card accent"><div class="label">出演者</div><div class="value">${perfConfirmed} / ${performers.length}</div><div class="sub">確定 / 全体</div></div>
-    <div class="card gold"><div class="label">出展者ブース</div><div class="value">${exhibConfirmed} / 30</div><div class="sub">確定 / 全体</div></div>
+    <div class="card gold"><div class="label">出店者ブース</div><div class="value">${exhibConfirmed} / 30</div><div class="sub">確定 / 全体</div></div>
     <div class="card blue"><div class="label">未完了タスク</div><div class="value">${tasksOpen}</div><div class="sub">うち期限切れ ${tasksOverdue}</div></div>
     <div class="card green"><div class="label">次回ミーティング</div><div class="value" style="font-size:18px">${nextMeeting ? nextMeeting.date : '未設定'}</div><div class="sub">${nextMeeting ? (nextMeeting.title || '') : '議事録タブから追加'}</div></div>
   `;
@@ -1555,6 +1555,13 @@ function renderExhibitors() {
   if (namedBooths.length === 0) {
     cp.style.display = 'none';
   } else {
+    // Migrate legacy feePaid → per-day flags (silent, one-time)
+    namedBooths.forEach(b => {
+      if (b.feePaid === true) {
+        if (b.day1FeePaid === undefined) b.day1FeePaid = true;
+        if (b.day2FeePaid === undefined) b.day2FeePaid = true;
+      }
+    });
     cp.style.display = 'block';
     const collect = namedBooths.map(b => {
       const days = Number(b.days) || 0;
@@ -1567,12 +1574,16 @@ function renderExhibitors() {
       const d2Comm = Math.floor(d2Sales * rate);
       const wantsD1 = days === 2 || (days === 1 && wd === '1');
       const wantsD2 = days === 2 || (days === 1 && wd === '2');
-      const feePaid = !!b.feePaid;
-      const d1Paid = !!b.day1CommissionPaid;
-      const d2Paid = !!b.day2CommissionPaid;
-      const remain = (feePaid ? 0 : fee) + (wantsD1 && !d1Paid ? d1Comm : 0) + (wantsD2 && !d2Paid ? d2Comm : 0);
-      const total = fee + (wantsD1 ? d1Comm : 0) + (wantsD2 ? d2Comm : 0);
-      return { b, days, wd, fee, d1Sales, d2Sales, d1Comm, d2Comm, wantsD1, wantsD2, feePaid, d1Paid, d2Paid, remain, total };
+      const d1Fee = days === 2 ? Math.floor(fee/2) : (wd === '1' ? fee : 0);
+      const d2Fee = days === 2 ? (fee - Math.floor(fee/2)) : (wd === '2' ? fee : 0);
+      const d1FeePaid = !!b.day1FeePaid;
+      const d2FeePaid = !!b.day2FeePaid;
+      const d1CommPaid = !!b.day1CommissionPaid;
+      const d2CommPaid = !!b.day2CommissionPaid;
+      const remain = (d1Fee && !d1FeePaid ? d1Fee : 0) + (d2Fee && !d2FeePaid ? d2Fee : 0)
+                    + (wantsD1 && !d1CommPaid ? d1Comm : 0) + (wantsD2 && !d2CommPaid ? d2Comm : 0);
+      const total = d1Fee + d2Fee + (wantsD1 ? d1Comm : 0) + (wantsD2 ? d2Comm : 0);
+      return { b, days, wd, fee, d1Fee, d2Fee, d1Sales, d2Sales, d1Comm, d2Comm, wantsD1, wantsD2, d1FeePaid, d2FeePaid, d1CommPaid, d2CommPaid, remain, total };
     });
     const totalRemain = collect.reduce((s, c) => s + c.remain, 0);
     const totalFull = collect.reduce((s, c) => s + c.total, 0);
@@ -1590,8 +1601,19 @@ function renderExhibitors() {
         <div style="background:#D5F5E3;border-radius:8px;padding:12px;border-left:4px solid #27AE60"><div style="font-size:11px;color:#888">回収済み</div><div style="font-size:24px;font-weight:700">¥${(totalFull-totalRemain).toLocaleString()}</div></div>
         <div style="background:#EAECEE;border-radius:8px;padding:12px;border-left:4px solid #7F8C8D"><div style="font-size:11px;color:#888">合計（見込）</div><div style="font-size:24px;font-weight:700">¥${totalFull.toLocaleString()}</div></div>
       </div>
-      <div style="overflow-x:auto"><table class="data-table" style="font-size:12px;min-width:720px">
-        <thead><tr><th>ブース</th><th>出店名</th><th>参加</th><th>出店料</th><th>1日目歩合<br><span style="font-weight:normal;font-size:10px;color:#888">売上×10%</span></th><th>2日目歩合<br><span style="font-weight:normal;font-size:10px;color:#888">売上×10%</span></th><th class="num">未収</th><th></th></tr></thead>
+      <div style="overflow-x:auto"><table class="data-table" style="font-size:12px;min-width:900px">
+        <thead>
+          <tr>
+            <th rowspan="2">ブース</th><th rowspan="2">出店名</th><th rowspan="2">参加</th>
+            <th colspan="2" style="background:#FEF5E7;border-bottom:2px solid #F39C12">1日目分</th>
+            <th colspan="2" style="background:#E8F4F8;border-bottom:2px solid #2980B9">2日目分</th>
+            <th rowspan="2" class="num">未収</th><th rowspan="2"></th>
+          </tr>
+          <tr>
+            <th style="background:#FEF5E7">出店料</th><th style="background:#FEF5E7">歩合<br><span style="font-weight:normal;font-size:10px;color:#888">売上×10%</span></th>
+            <th style="background:#E8F4F8">出店料</th><th style="background:#E8F4F8">歩合<br><span style="font-weight:normal;font-size:10px;color:#888">売上×10%</span></th>
+          </tr>
+        </thead>
         <tbody>${collect.map(c => {
           const bId = c.b.id;
           const partLabel = c.days === 2 ? '両日' : (c.wd === '1' ? '1日目' : (c.wd === '2' ? '2日目' : '?'));
@@ -1600,24 +1622,27 @@ function renderExhibitors() {
             <td><strong>${escapeHtml(bId)}</strong></td>
             <td>${escapeHtml(c.b.name)}</td>
             <td>${partLabel}</td>
-            ${cell(c.feePaid, c.fee, c.fee > 0, bId, 'fee')}
-            ${cell(c.d1Paid, c.d1Comm, c.wantsD1 && c.d1Comm > 0, bId, 'd1')}
-            ${cell(c.d2Paid, c.d2Comm, c.wantsD2 && c.d2Comm > 0, bId, 'd2')}
+            ${cell(c.d1FeePaid, c.d1Fee, c.d1Fee > 0, bId, 'd1fee')}
+            ${cell(c.d1CommPaid, c.d1Comm, c.wantsD1 && c.d1Comm > 0, bId, 'd1comm')}
+            ${cell(c.d2FeePaid, c.d2Fee, c.d2Fee > 0, bId, 'd2fee')}
+            ${cell(c.d2CommPaid, c.d2Comm, c.wantsD2 && c.d2Comm > 0, bId, 'd2comm')}
             <td class="num" style="font-weight:700;color:${c.remain>0?'#C0392B':'#27AE60'}">${c.remain>0?'¥'+c.remain.toLocaleString():'✓完済'}</td>
             <td><button class="btn small ghost" onclick="openReceiptModal('${bId}')">🧾 領収書</button></td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>
-      <div style="font-size:11px;color:#888;margin-top:8px">※ チェックすると回収済みになります。「1日目分のみ」「歩合のみ」「まとめて」など柔軟に対応可能。</div>
+      <div style="font-size:11px;color:#888;margin-top:8px">※ 2日出店料(¥5,000)は1日目分・2日目分に均等分割（各¥2,500）。1日目に1日目分だけ受け取り→2日目に2日目分だけ受け取り、も可能です。</div>
     `;
   }
 }
 function togglePaid(boothId, kind, paid) {
   const b = state.exhibitors.find(e => e.id === boothId);
   if (!b) return;
-  if (kind === 'fee') b.feePaid = paid;
-  else if (kind === 'd1') b.day1CommissionPaid = paid;
-  else if (kind === 'd2') b.day2CommissionPaid = paid;
+  if (kind === 'd1fee') b.day1FeePaid = paid;
+  else if (kind === 'd2fee') b.day2FeePaid = paid;
+  else if (kind === 'd1comm') b.day1CommissionPaid = paid;
+  else if (kind === 'd2comm') b.day2CommissionPaid = paid;
+  else if (kind === 'fee') { b.day1FeePaid = paid; b.day2FeePaid = paid; }
   saveState();
   renderExhibitors();
 }
@@ -1634,26 +1659,67 @@ function openReceiptModal(boothId) {
   const d2Comm = Math.floor(d2Sales * rate);
   const wantsD1 = days === 2 || (days === 1 && wd === '1');
   const wantsD2 = days === 2 || (days === 1 && wd === '2');
+  const d1Fee = days === 2 ? Math.floor(fee/2) : (wd === '1' ? fee : 0);
+  const d2Fee = days === 2 ? (fee - Math.floor(fee/2)) : (wd === '2' ? fee : 0);
   const items = [];
-  if (fee > 0) items.push({ key: 'fee', label: `出店料（${days === 2 ? '2日' : '1日'}）`, amount: fee });
-  if (wantsD1 && d1Comm > 0) items.push({ key: 'd1', label: `1日目 売上歩合 ${(rate*100).toFixed(0)}%（売上¥${d1Sales.toLocaleString()}）`, amount: d1Comm });
-  if (wantsD2 && d2Comm > 0) items.push({ key: 'd2', label: `2日目 売上歩合 ${(rate*100).toFixed(0)}%（売上¥${d2Sales.toLocaleString()}）`, amount: d2Comm });
+  if (d1Fee > 0) items.push({ key: 'd1fee', paidKey: 'day1FeePaid', receiptedKey: 'day1FeeReceipted', label: `1日目 出店料${days === 2 ? '（2日分の半額）' : ''}`, amount: d1Fee });
+  if (wantsD1 && d1Comm > 0) items.push({ key: 'd1comm', paidKey: 'day1CommissionPaid', receiptedKey: 'day1CommissionReceipted', label: `1日目 売上歩合 ${(rate*100).toFixed(0)}%（売上¥${d1Sales.toLocaleString()}）`, amount: d1Comm });
+  if (d2Fee > 0) items.push({ key: 'd2fee', paidKey: 'day2FeePaid', receiptedKey: 'day2FeeReceipted', label: `2日目 出店料${days === 2 ? '（2日分の半額）' : ''}`, amount: d2Fee });
+  if (wantsD2 && d2Comm > 0) items.push({ key: 'd2comm', paidKey: 'day2CommissionPaid', receiptedKey: 'day2CommissionReceipted', label: `2日目 売上歩合 ${(rate*100).toFixed(0)}%（売上¥${d2Sales.toLocaleString()}）`, amount: d2Comm });
   if (items.length === 0) { toast('発行できる項目がありません（金額が0円）'); return; }
-  const checks = items.map((it, i) => `<label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #E0E0E0;border-radius:6px;margin-bottom:6px;cursor:pointer"><input type="checkbox" checked data-idx="${i}" data-amount="${it.amount}" onchange="updateReceiptTotal()"><span style="flex:1">${escapeHtml(it.label)}</span><span style="font-weight:700">¥${it.amount.toLocaleString()}</span></label>`).join('');
+  const checks = items.map((it, i) => {
+    const isPaid = !!b[it.paidKey];
+    const isReceipted = !!b[it.receiptedKey];
+    const shouldCheck = isPaid && !isReceipted;
+    let badge = '';
+    if (isReceipted) badge = `<span class="status-badge" style="background:#D6EAF8;color:#1B4F72;margin-left:6px">✓ 発行済</span> <button type="button" onclick="event.preventDefault();event.stopPropagation();resetReceipted('${b.id}','${it.receiptedKey}')" style="background:none;border:none;color:#3498DB;text-decoration:underline;cursor:pointer;font-size:11px;padding:0;margin-left:2px">リセット</button>`;
+    else if (isPaid) badge = '<span class="status-badge" style="background:#FEF5E7;color:#B7950B;margin-left:6px">未発行</span>';
+    else badge = '<span class="status-badge" style="background:#F4F4F4;color:#888;margin-left:6px">未回収</span>';
+    const style = isReceipted ? 'opacity:0.55' : '';
+    return `<label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #E0E0E0;border-radius:6px;margin-bottom:6px;cursor:pointer;${style}"><input type="checkbox" ${shouldCheck?'checked':''} data-idx="${i}" data-amount="${it.amount}" onchange="updateReceiptTotal()"><span style="flex:1;font-size:13px">${escapeHtml(it.label)}${badge}</span><span style="font-weight:700">¥${it.amount.toLocaleString()}</span></label>`;
+  }).join('');
+  const defaultTotal = items.reduce((s, it) => {
+    const isPaid = !!b[it.paidKey];
+    const isReceipted = !!b[it.receiptedKey];
+    return s + ((isPaid && !isReceipted) ? it.amount : 0);
+  }, 0);
   showModal(`
     <button class="modal-close" onclick="closeModal()">×</button>
     <h3>🧾 領収書の発行 — ${escapeHtml(b.id)} ${escapeHtml(b.name)}</h3>
-    <p style="font-size:12px;color:#666">発行する項目を選んでください（チェック外すと除外）</p>
+    <p style="font-size:12px;color:#666">「回収済み・未発行」の項目が自動でチェックされます。過去に発行済みのものは自動で外れています（必要ならチェックし直せます）</p>
     <div id="receiptItems">${checks}</div>
-    <div style="margin-top:12px;padding:12px;background:#FFF8E7;border-radius:8px;text-align:right;font-size:16px">合計 <span id="receiptTotal" style="font-size:22px;font-weight:700">¥${items.reduce((s,i)=>s+i.amount,0).toLocaleString()}</span></div>
+    <div style="margin-top:12px;padding:12px;background:#FFF8E7;border-radius:8px;text-align:right;font-size:16px">合計 <span id="receiptTotal" style="font-size:22px;font-weight:700">¥${defaultTotal.toLocaleString()}</span></div>
     <div class="form-actions">
       <button class="btn" onclick="printReceipt('${b.id}')">🖨 印刷 / PDF保存</button>
+      <button class="btn ghost small" onclick="resetAllReceipted('${b.id}')">🔄 このお店の発行済フラグを全リセット</button>
       <button class="btn secondary" onclick="closeModal()">キャンセル</button>
     </div>
-    <div style="font-size:11px;color:#888;margin-top:8px">※ 印刷後に「回収済み」チェックは表の側で手動で入れてください</div>
+    <div style="font-size:11px;color:#888;margin-top:8px">※ 印刷後、選択した項目は自動で「発行済」になり、次回モーダルではチェック外の状態で表示されます</div>
   `);
   window._receiptItems = items;
   window._receiptBoothId = b.id;
+}
+function resetReceipted(boothId, key) {
+  const b = state.exhibitors.find(e => e.id === boothId);
+  if (!b) return;
+  b[key] = false;
+  saveState();
+  renderExhibitors();
+  openReceiptModal(boothId);
+  toast('発行済フラグをリセットしました');
+}
+function resetAllReceipted(boothId) {
+  const b = state.exhibitors.find(e => e.id === boothId);
+  if (!b) return;
+  if (!confirm(b.id + ' ' + b.name + ' の「発行済」フラグを全てリセットします。よろしいですか？')) return;
+  b.day1FeeReceipted = false;
+  b.day2FeeReceipted = false;
+  b.day1CommissionReceipted = false;
+  b.day2CommissionReceipted = false;
+  saveState();
+  renderExhibitors();
+  openReceiptModal(boothId);
+  toast('全ての発行済フラグをリセットしました');
 }
 function updateReceiptTotal() {
   const items = window._receiptItems || [];
@@ -1686,8 +1752,9 @@ function printReceipt(boothId) {
   table.items td:last-child { text-align:right; font-family:monospace; white-space:nowrap; }
   table.items tr.total td { font-weight:bold; border-top:2px solid #000; border-bottom:none; font-size:14px; padding-top:12px; }
   .confirm { font-size:12px; margin-top:20px; }
-  .footer { text-align:right; margin-top:40px; font-size:14px; line-height:1.9 }
-  .stamp { display:inline-block; border:2px solid #C0392B; color:#C0392B; padding:14px 18px; border-radius:50%; margin-left:20px; font-weight:bold; font-size:13px }
+  .footer { margin-top:40px; font-size:14px; line-height:1.9; display:flex; justify-content:flex-end; align-items:center; gap:24px }
+  .footer-info { text-align:right }
+  .stamp { display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; width:60px; height:60px; border:3px solid #C0392B; color:#C0392B; border-radius:50%; font-weight:bold; font-size:17px; font-family:"Yu Mincho","Hiragino Mincho ProN",serif; writing-mode:vertical-rl; text-orientation:upright; letter-spacing:0.15em; transform:rotate(-4deg); opacity:0.88; flex-shrink:0 }
   .actions { margin-top:30px; text-align:center; }
   .actions button { padding:10px 30px; font-size:14px; margin:0 5px; cursor:pointer; border:1px solid #999; background:#fff; border-radius:6px; }
   .actions button.primary { background:#D63031; color:#fff; border-color:#D63031; }
@@ -1705,9 +1772,11 @@ function printReceipt(boothId) {
 </table>
 <p class="confirm">上記正に領収いたしました</p>
 <div class="footer">
-  <strong>第14回 北海道金魚祭り 実行委員会</strong><br>
-  お問い合わせ: 080-1063-1833
-  <span class="stamp">領収</span>
+  <div class="footer-info">
+    <strong>北海道金魚祭り実行委員会</strong><br>
+    お問合せ：080-1863-1033（西田）
+  </div>
+  <div class="stamp">西田</div>
 </div>
 <div class="actions">
   <button class="primary" onclick="window.print()">🖨 印刷 / PDF保存</button>
@@ -1717,7 +1786,14 @@ function printReceipt(boothId) {
   const w = window.open('', '_blank', 'width=760,height=900');
   w.document.write(html);
   w.document.close();
+  // Mark selected items as receipted
+  selectedItems.forEach(it => {
+    if (it.receiptedKey) b[it.receiptedKey] = true;
+  });
+  saveState();
+  renderExhibitors();
   closeModal();
+  toast(selectedItems.length + '項目を「発行済」にしました');
 }
 
 function openExhibitorEdit(idx) {
@@ -1733,7 +1809,7 @@ function openExhibitorEdit(idx) {
     <div class="form-row">
       <label>参加日数<select id="bx_days"><option value="0">未定</option><option value="1">1日</option><option value="2">2日</option></select></label>
       <label id="bx_whichDayWrap">何日目に参加？<select id="bx_whichDay"><option value="">未確定</option><option value="1">1日目のみ</option><option value="2">2日目のみ</option></select></label>
-      <label>出展料<input type="number" id="bx_fee" value="${b.fee||0}"></label>
+      <label>出店料<input type="number" id="bx_fee" value="${b.fee||0}"></label>
       <label>歩合率（%）<input type="number" id="bx_rate" value="${b.commissionRate||10}"></label>
     </div>
     <div class="form-row">
@@ -1928,10 +2004,10 @@ async function importExhibitorApps() {
     const data = await res.json();
     const apps = Array.isArray((data.record||{}).shuttenApps) ? data.record.shuttenApps : [];
     showSyncStatus('synced');
-    if (apps.length === 0) { toast('出展申込はまだ届いていません'); return; }
+    if (apps.length === 0) { toast('出店申込はまだ届いていません'); return; }
     const since = state.settings.lastShuttenImport || '';
     const newApps = apps.filter(function(a){ return String(a.submittedAt||'') > since; });
-    if (newApps.length === 0) { toast('新しい出展申込はありません'); return; }
+    if (newApps.length === 0) { toast('新しい出店申込はありません'); return; }
     const added = [];
     newApps.forEach(function(a) {
       let booth = state.exhibitors.find(function(e){ return !e.name; });
@@ -1948,14 +2024,14 @@ async function importExhibitorApps() {
       booth.contact = a.contact || '';
       booth.phone = a.phone || '';
       booth.status = '交渉中';
-      booth.lineNote = '【出展申込フォームより】' + (a.note ? '\n' + a.note : '');
+      booth.lineNote = '【出店申込フォームより】' + (a.note ? '\n' + a.note : '');
       added.push(booth.id + ' ' + booth.name);
     });
     state.settings.lastShuttenImport = new Date().toISOString();
     saveState();
     renderExhibitors();
-    let html = '<button class="modal-close" onclick="closeModal()">×</button><h3>📥 出展申込の取り込み結果</h3>';
-    html += '<p style="font-size:13px;color:#555">' + added.length + '件の出展申込をブースに追加しました（状態：交渉中）。</p>';
+    let html = '<button class="modal-close" onclick="closeModal()">×</button><h3>📥 出店申込の取り込み結果</h3>';
+    html += '<p style="font-size:13px;color:#555">' + added.length + '件の出店申込をブースに追加しました（状態：交渉中）。</p>';
     html += '<ul style="font-size:13px;padding-left:20px">' + added.map(function(x){ return '<li>' + escapeHtml(x) + '</li>'; }).join('') + '</ul>';
     html += '<div class="form-actions"><button class="btn secondary" onclick="closeModal()">閉じる</button></div>';
     showModal(html);
@@ -2153,7 +2229,7 @@ function deleteSponsor(idx) {
 // ============================================================
 //                          STAFF
 // ============================================================
-const staffRoles = ['会計', '出演者担当', '出展者担当', '広報', '警備', '会場設営', 'ステージ進行', '当日スタッフ', 'その他'];
+const staffRoles = ['会計', '出演者担当', '出店者担当', '広報', '警備', '会場設営', 'ステージ進行', '当日スタッフ', 'その他'];
 
 function renderStaff() {
   // Populate role filter
@@ -2630,7 +2706,7 @@ function openSendModal(type, options) {
   const isPerf = type === 'performer';
   const list = isPerf ? state.performers : state.exhibitors;
   const perfTemplates = ['出演依頼','スケジュール確認','リマインダー','お礼','ポスター素材依頼'];
-  const exhTemplates = ['出展募集','出展確定通知','搬入案内','売上報告依頼','ビンゴ景品協賛依頼'];
+  const exhTemplates = ['出店募集','出店確定通知','搬入案内','売上報告依頼','ビンゴ景品協賛依頼'];
   const templates = isPerf ? perfTemplates : exhTemplates;
   const presetTemplate = options.presetTemplate || templates[0];
   const preselected = options.preselectedIdx !== undefined ? [options.preselectedIdx] : [];
@@ -2638,7 +2714,7 @@ function openSendModal(type, options) {
 
   showModal(`
     <button class="modal-close" onclick="closeModal()">×</button>
-    <h3>📢 ${isPerf ? '出演者' : '出展者'}にLINEを送る</h3>
+    <h3>📢 ${isPerf ? '出演者' : '出店者'}にLINEを送る</h3>
 
     <div class="form-row">
       <label>テンプレート
@@ -2878,9 +2954,9 @@ function openSettings() {
       <label class="full">会計シートURL（参考リンク）<input id="st_sheetUrl" value="${escapeHtml(s.sheetUrl||'')}"></label>
     </div>
     <details style="margin-top:6px">
-      <summary>📋 配布用フォームのURL（出展者・出演者に配る）</summary>
+      <summary>📋 配布用フォームのURL（出店者・出演者に配る）</summary>
       <div style="font-size:12px;margin:10px 0;line-height:1.6;color:#444">
-        <strong>出展申込フォーム</strong><br>
+        <strong>出店申込フォーム</strong><br>
         <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/?form=shutten" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0 8px">
         <strong>出演応募フォーム</strong><br>
         <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/?form=shutsuen" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0 8px">
