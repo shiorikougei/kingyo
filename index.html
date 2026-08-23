@@ -595,7 +595,7 @@ details[open] summary { margin-bottom: 10px; }
       <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'出展確定通知'})">✅ 出展確定通知</span>
       <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'搬入案内'})">🚛 搬入案内</span>
       <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'売上報告依頼'})">📊 売上報告依頼</span>
-      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'ビンゴ景品協賛依頼'})">🎁 ビンゴ景品協賛依頼</span>
+      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'ビンゴ景品協賛依頼'})">🎁 景品協賛＋SNS素材依頼</span>
       <span class="template-chip" style="background:#D63031;color:white;border-color:#D63031" onclick="openSendModal('exhibitor')">📢 送信先を選んで送る</span>
     </div>
   </div>
@@ -622,6 +622,7 @@ details[open] summary { margin-bottom: 10px; }
   </div>
 
   <div class="panel" id="bingoPanel" style="display:none"></div>
+  <div class="panel" id="collectionPanel" style="display:none"></div>
 </section>
 
 <!-- ============ SPONSORS ============ -->
@@ -940,7 +941,7 @@ const messageTemplates = {
   '出展確定通知': `{名前}様\n\nお世話になっております。\nこの度はご出展のお申込みありがとうございます。下記の通り確定いたしました。\n\n■ ブース番号：{ブース番号}\n■ 参加日数：\n■ 出展料：\n■ 搬入時間：\n\n後日詳細をご案内します。`,
   '搬入案内': `{名前}様\n\nブース搬入の詳細をお送りいたします。\n\n■ ブース番号：{ブース番号}\n■ 搬入時間：\n■ 搬入場所：\n■ 駐車場：\n■ 当日の連絡先：\n\nお気をつけてお越しください。`,
   '売上報告依頼': `{名前}様\n\nお疲れ様でした。当日の売上の自己申告をお願いいたします。\n\n▼ こちらのフォームからご報告ください\nhttps://kingyo-uriage.shiorikougei.workers.dev/\n\n（ブース番号：{ブース番号}）\n\nご協力ありがとうございます。`,
-  'ビンゴ景品協賛依頼': `{名前}様\n\nいつもお世話になっております、金魚祭り実行委員会です🎏\n\n当日のビンゴ大会用の景品協賛について、お願いのご連絡です。\n\n▼ こちらのフォームからご回答をお願いいたします\nhttps://kingyo-uriage.shiorikougei.workers.dev/?form=bingo\n\n■ 目安：原価500円程度のもの\n■ ご協力方法は2択：\n　①販売商品で協賛（商品名・個数をご記入）\n　②500円で協賛\n\nご負担のない範囲でご協力いただけますと大変助かります。\nどうぞよろしくお願いいたします。`,
+  'ビンゴ景品協賛依頼': `{名前}様\n\nいつもお世話になっております、金魚祭り実行委員会です🎏\n\n当日の景品協賛、およびSNS投稿用の素材提供について、まとめてお願いのご連絡です。\n\n━━━━━━━━━━\n【① ビンゴ大会・抽選会 景品協賛のお願い】\n━━━━━━━━━━\n\nブース並びにキッチンカーを出店される各社より、販売商品現物を2〜3品（原価500円以内）、景品として協賛をお願いします。\n飲食物でのご提供の場合は、本部で交換チケットをお作りし、当選者にお渡しして店頭にて引き換えさせていただきます。\n（交換チケットの有効期限は当日のみです）\n\n▼ こちらのフォームからご回答をお願いいたします\nhttps://kingyo-uriage.shiorikougei.workers.dev/?form=bingo\n\n■ ご協力方法：\n　①販売商品で協賛\n　②その他の物品で協賛（野菜・お米・花など）\n　③500円で協賛\n\n━━━━━━━━━━\n【② SNS素材のご提供のお願い】\n━━━━━━━━━━\n\n事前のInstagram告知に使わせていただく素材のご提供もお願いいたします。\n動画・画像どちらでもOKです。\n\n▼ 動画素材の場合\n・店舗紹介＋当日販売するものの紹介動画\n・編集はこちらで対応します\n・Instagramリールで投稿させていただきます\n\n▼ 画像素材の場合\n・3〜5枚程度あると嬉しいです\n・販売するものの紹介文もあれば添えてください\n・こちらで動画化して、Instagramリールで投稿します\n\n▼ Instagramアカウントについて\n・アカウントをお持ちで「メンションOK」の方は、アカウントIDもあわせてお送りください（例：@your_id）\n\n素材はこのトークにそのまま添付してお送りください🙏\n\n━━━━━━━━━━\n\nお手数をおかけしますが、ご負担のない範囲でご協力いただけますと大変助かります。\nどうぞよろしくお願いいたします。`,
 };
 
 let state = null; // initialized after login via bootApp()
@@ -1529,22 +1530,194 @@ function renderExhibitors() {
     const contribs = namedBooths.map(e => ({ id: e.id, name: e.name, type: e.bingoType || '', product: e.bingoProduct || '', count: e.bingoCount || 0, note: e.bingoNote || '' }));
     const withResp = contribs.filter(c => c.type);
     const items = withResp.filter(c => c.type === '販売商品');
+    const goods = withResp.filter(c => c.type === '物品');
     const cash = withResp.filter(c => c.type === '500円協賛');
     const noResp = contribs.filter(c => !c.type);
     const cashAmount = cash.length * 500;
     const totalItems = items.reduce((s, c) => s + (c.count || 0), 0);
-    bp.innerHTML = `<h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">🎁 ビンゴ景品協賛 一覧<button class="btn small gold" onclick="importBingoContributions()">📥 ビンゴ景品を取り込む</button></h3>
+    const totalGoods = goods.reduce((s, c) => s + (c.count || 0), 0);
+    bp.innerHTML = `<h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">🎁 ビンゴ・抽選会 景品協賛 一覧<button class="btn small gold" onclick="importBingoContributions()">📥 景品協賛を取り込む</button></h3>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;font-size:13px;margin-bottom:12px">
         <div style="background:#FEF5E7;border-radius:8px;padding:10px;border-left:4px solid #F39C12"><div style="font-size:11px;color:#888">回答済</div><div style="font-size:22px;font-weight:700">${withResp.length}<span style="font-size:12px;font-weight:normal;color:#666"> / ${namedBooths.length}店</span></div></div>
-        <div style="background:#E8F4F8;border-radius:8px;padding:10px;border-left:4px solid #2980B9"><div style="font-size:11px;color:#888">販売商品協賛</div><div style="font-size:22px;font-weight:700">${items.length}<span style="font-size:12px;font-weight:normal;color:#666"> 店 / 計 ${totalItems} 個</span></div></div>
-        <div style="background:#F4ECF7;border-radius:8px;padding:10px;border-left:4px solid #8E44AD"><div style="font-size:11px;color:#888">500円協賛</div><div style="font-size:22px;font-weight:700">${cash.length}<span style="font-size:12px;font-weight:normal;color:#666"> 店 / ${fmt(cashAmount)}</span></div></div>
+        <div style="background:#E8F4F8;border-radius:8px;padding:10px;border-left:4px solid #2980B9"><div style="font-size:11px;color:#888">①販売商品</div><div style="font-size:22px;font-weight:700">${items.length}<span style="font-size:12px;font-weight:normal;color:#666"> 店 / 計 ${totalItems} 個</span></div></div>
+        <div style="background:#E9F7EF;border-radius:8px;padding:10px;border-left:4px solid #27AE60"><div style="font-size:11px;color:#888">②その他の物品</div><div style="font-size:22px;font-weight:700">${goods.length}<span style="font-size:12px;font-weight:normal;color:#666"> 店 / 計 ${totalGoods} 個</span></div></div>
+        <div style="background:#F4ECF7;border-radius:8px;padding:10px;border-left:4px solid #8E44AD"><div style="font-size:11px;color:#888">③500円協賛</div><div style="font-size:22px;font-weight:700">${cash.length}<span style="font-size:12px;font-weight:normal;color:#666"> 店 / ${fmt(cashAmount)}</span></div></div>
         ${noResp.length ? `<div style="background:#FADBD8;border-radius:8px;padding:10px;border-left:4px solid #C0392B"><div style="font-size:11px;color:#888">未回答</div><div style="font-size:22px;font-weight:700">${noResp.length}<span style="font-size:12px;font-weight:normal;color:#666"> 店</span></div></div>` : ''}
       </div>
       <details><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:6px 0;color:#2C3E50">📋 全店の協賛一覧を見る（${contribs.length}店）</summary>
-      <table class="data-table" style="margin-top:8px;font-size:12px"><thead><tr><th>ブース</th><th>出店名</th><th>協賛方法</th><th>商品名</th><th class="num">個数</th><th>備考</th></tr></thead><tbody>
+      <table class="data-table" style="margin-top:8px;font-size:12px"><thead><tr><th>ブース</th><th>出店名</th><th>協賛方法</th><th>協賛品</th><th class="num">個数</th><th>備考</th></tr></thead><tbody>
       ${contribs.map(c => `<tr style="${c.type?'':'opacity:0.55'}"><td><strong>${escapeHtml(c.id)}</strong></td><td>${escapeHtml(c.name)}</td><td>${c.type ? '<span class="status-badge status-完了">' + escapeHtml(c.type) + '</span>' : '<span class="status-badge status-未連絡">未回答</span>'}</td><td>${escapeHtml(c.product || '-')}</td><td class="num">${c.count || '-'}</td><td>${escapeHtml(c.note || '-')}</td></tr>`).join('')}
       </tbody></table></details>`;
   }
+
+  // Collection panel (当日集金リスト)
+  const cp = document.getElementById('collectionPanel');
+  if (namedBooths.length === 0) {
+    cp.style.display = 'none';
+  } else {
+    cp.style.display = 'block';
+    const collect = namedBooths.map(b => {
+      const days = Number(b.days) || 0;
+      const wd = b.whichDay || '';
+      const rate = (b.commissionRate || 10) / 100;
+      const fee = b.fee || 0;
+      const d1Sales = b.salesDay1 || 0;
+      const d2Sales = b.salesDay2 || 0;
+      const d1Comm = Math.floor(d1Sales * rate);
+      const d2Comm = Math.floor(d2Sales * rate);
+      const wantsD1 = days === 2 || (days === 1 && wd === '1');
+      const wantsD2 = days === 2 || (days === 1 && wd === '2');
+      const feePaid = !!b.feePaid;
+      const d1Paid = !!b.day1CommissionPaid;
+      const d2Paid = !!b.day2CommissionPaid;
+      const remain = (feePaid ? 0 : fee) + (wantsD1 && !d1Paid ? d1Comm : 0) + (wantsD2 && !d2Paid ? d2Comm : 0);
+      const total = fee + (wantsD1 ? d1Comm : 0) + (wantsD2 ? d2Comm : 0);
+      return { b, days, wd, fee, d1Sales, d2Sales, d1Comm, d2Comm, wantsD1, wantsD2, feePaid, d1Paid, d2Paid, remain, total };
+    });
+    const totalRemain = collect.reduce((s, c) => s + c.remain, 0);
+    const totalFull = collect.reduce((s, c) => s + c.total, 0);
+    const doneCount = collect.filter(c => c.remain === 0).length;
+    const cell = (paid, amount, canPay, boothId, kind) => {
+      if (!canPay) return '<td style="color:#BDC3C7">-</td>';
+      const chk = paid ? 'checked' : '';
+      const style = paid ? 'text-decoration:line-through;color:#95A5A6' : 'font-weight:700';
+      return `<td><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px"><input type="checkbox" ${chk} onchange="togglePaid('${boothId}','${kind}',this.checked)"><span style="${style}">¥${amount.toLocaleString()}</span></label></td>`;
+    };
+    cp.innerHTML = `
+      <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">💵 当日集金リスト<span style="font-size:12px;font-weight:normal;color:#666">回収済 ${doneCount}/${collect.length}店</span></h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;font-size:13px;margin-bottom:12px">
+        <div style="background:#FADBD8;border-radius:8px;padding:12px;border-left:4px solid #C0392B"><div style="font-size:11px;color:#888">未回収 合計</div><div style="font-size:24px;font-weight:700">¥${totalRemain.toLocaleString()}</div></div>
+        <div style="background:#D5F5E3;border-radius:8px;padding:12px;border-left:4px solid #27AE60"><div style="font-size:11px;color:#888">回収済み</div><div style="font-size:24px;font-weight:700">¥${(totalFull-totalRemain).toLocaleString()}</div></div>
+        <div style="background:#EAECEE;border-radius:8px;padding:12px;border-left:4px solid #7F8C8D"><div style="font-size:11px;color:#888">合計（見込）</div><div style="font-size:24px;font-weight:700">¥${totalFull.toLocaleString()}</div></div>
+      </div>
+      <div style="overflow-x:auto"><table class="data-table" style="font-size:12px;min-width:720px">
+        <thead><tr><th>ブース</th><th>出店名</th><th>参加</th><th>出店料</th><th>1日目歩合<br><span style="font-weight:normal;font-size:10px;color:#888">売上×10%</span></th><th>2日目歩合<br><span style="font-weight:normal;font-size:10px;color:#888">売上×10%</span></th><th class="num">未収</th><th></th></tr></thead>
+        <tbody>${collect.map(c => {
+          const bId = c.b.id;
+          const partLabel = c.days === 2 ? '両日' : (c.wd === '1' ? '1日目' : (c.wd === '2' ? '2日目' : '?'));
+          const rowStyle = c.remain === 0 ? 'background:#F4FBF7' : '';
+          return `<tr style="${rowStyle}">
+            <td><strong>${escapeHtml(bId)}</strong></td>
+            <td>${escapeHtml(c.b.name)}</td>
+            <td>${partLabel}</td>
+            ${cell(c.feePaid, c.fee, c.fee > 0, bId, 'fee')}
+            ${cell(c.d1Paid, c.d1Comm, c.wantsD1 && c.d1Comm > 0, bId, 'd1')}
+            ${cell(c.d2Paid, c.d2Comm, c.wantsD2 && c.d2Comm > 0, bId, 'd2')}
+            <td class="num" style="font-weight:700;color:${c.remain>0?'#C0392B':'#27AE60'}">${c.remain>0?'¥'+c.remain.toLocaleString():'✓完済'}</td>
+            <td><button class="btn small ghost" onclick="openReceiptModal('${bId}')">🧾 領収書</button></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+      <div style="font-size:11px;color:#888;margin-top:8px">※ チェックすると回収済みになります。「1日目分のみ」「歩合のみ」「まとめて」など柔軟に対応可能。</div>
+    `;
+  }
+}
+function togglePaid(boothId, kind, paid) {
+  const b = state.exhibitors.find(e => e.id === boothId);
+  if (!b) return;
+  if (kind === 'fee') b.feePaid = paid;
+  else if (kind === 'd1') b.day1CommissionPaid = paid;
+  else if (kind === 'd2') b.day2CommissionPaid = paid;
+  saveState();
+  renderExhibitors();
+}
+function openReceiptModal(boothId) {
+  const b = state.exhibitors.find(e => e.id === boothId);
+  if (!b) return;
+  const days = Number(b.days) || 0;
+  const wd = b.whichDay || '';
+  const rate = (b.commissionRate || 10) / 100;
+  const fee = b.fee || 0;
+  const d1Sales = b.salesDay1 || 0;
+  const d2Sales = b.salesDay2 || 0;
+  const d1Comm = Math.floor(d1Sales * rate);
+  const d2Comm = Math.floor(d2Sales * rate);
+  const wantsD1 = days === 2 || (days === 1 && wd === '1');
+  const wantsD2 = days === 2 || (days === 1 && wd === '2');
+  const items = [];
+  if (fee > 0) items.push({ key: 'fee', label: `出店料（${days === 2 ? '2日' : '1日'}）`, amount: fee });
+  if (wantsD1 && d1Comm > 0) items.push({ key: 'd1', label: `1日目 売上歩合 ${(rate*100).toFixed(0)}%（売上¥${d1Sales.toLocaleString()}）`, amount: d1Comm });
+  if (wantsD2 && d2Comm > 0) items.push({ key: 'd2', label: `2日目 売上歩合 ${(rate*100).toFixed(0)}%（売上¥${d2Sales.toLocaleString()}）`, amount: d2Comm });
+  if (items.length === 0) { toast('発行できる項目がありません（金額が0円）'); return; }
+  const checks = items.map((it, i) => `<label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #E0E0E0;border-radius:6px;margin-bottom:6px;cursor:pointer"><input type="checkbox" checked data-idx="${i}" data-amount="${it.amount}" onchange="updateReceiptTotal()"><span style="flex:1">${escapeHtml(it.label)}</span><span style="font-weight:700">¥${it.amount.toLocaleString()}</span></label>`).join('');
+  showModal(`
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>🧾 領収書の発行 — ${escapeHtml(b.id)} ${escapeHtml(b.name)}</h3>
+    <p style="font-size:12px;color:#666">発行する項目を選んでください（チェック外すと除外）</p>
+    <div id="receiptItems">${checks}</div>
+    <div style="margin-top:12px;padding:12px;background:#FFF8E7;border-radius:8px;text-align:right;font-size:16px">合計 <span id="receiptTotal" style="font-size:22px;font-weight:700">¥${items.reduce((s,i)=>s+i.amount,0).toLocaleString()}</span></div>
+    <div class="form-actions">
+      <button class="btn" onclick="printReceipt('${b.id}')">🖨 印刷 / PDF保存</button>
+      <button class="btn secondary" onclick="closeModal()">キャンセル</button>
+    </div>
+    <div style="font-size:11px;color:#888;margin-top:8px">※ 印刷後に「回収済み」チェックは表の側で手動で入れてください</div>
+  `);
+  window._receiptItems = items;
+  window._receiptBoothId = b.id;
+}
+function updateReceiptTotal() {
+  const items = window._receiptItems || [];
+  const checked = Array.from(document.querySelectorAll('#receiptItems input:checked'));
+  const total = checked.reduce((s, c) => s + Number(c.dataset.amount), 0);
+  document.getElementById('receiptTotal').textContent = '¥' + total.toLocaleString();
+}
+function printReceipt(boothId) {
+  const b = state.exhibitors.find(e => e.id === boothId);
+  if (!b) return;
+  const items = window._receiptItems || [];
+  const checked = Array.from(document.querySelectorAll('#receiptItems input:checked'));
+  const selectedItems = checked.map(c => items[Number(c.dataset.idx)]).filter(Boolean);
+  if (selectedItems.length === 0) { toast('項目を選んでください'); return; }
+  const total = selectedItems.reduce((s, i) => s + i.amount, 0);
+  const today = new Date().toLocaleDateString('ja-JP');
+  const no = b.id + '-' + Date.now().toString().slice(-6);
+  const rowsHtml = selectedItems.map(i => `<tr><td>${escapeHtml(i.label)}</td><td>¥${i.amount.toLocaleString()}</td></tr>`).join('');
+  const html = `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8"><title>領収書 - ${escapeHtml(b.name)}</title>
+<style>
+  body { font-family: "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif; padding:40px; max-width:600px; margin:0 auto; color:#000; }
+  h1 { text-align:center; font-size:34px; letter-spacing:0.6em; border-bottom:3px double #000; padding-bottom:20px; margin:20px 0 30px; }
+  .meta { text-align:right; font-size:13px; margin-bottom:14px; line-height:1.6 }
+  .to { font-size:22px; padding-bottom:10px; border-bottom:1px solid #000; margin-bottom:20px; }
+  .amount { text-align:center; font-size:38px; font-weight:bold; padding:24px; border:3px double #000; margin:20px 0; letter-spacing:0.05em; }
+  .memo { font-size:13px; margin:15px 0 8px; }
+  table.items { width:100%; border-collapse:collapse; margin:10px 0; font-size:13px; }
+  table.items td { padding:8px 10px; border-bottom:1px dashed #999; }
+  table.items td:last-child { text-align:right; font-family:monospace; white-space:nowrap; }
+  table.items tr.total td { font-weight:bold; border-top:2px solid #000; border-bottom:none; font-size:14px; padding-top:12px; }
+  .confirm { font-size:12px; margin-top:20px; }
+  .footer { text-align:right; margin-top:40px; font-size:14px; line-height:1.9 }
+  .stamp { display:inline-block; border:2px solid #C0392B; color:#C0392B; padding:14px 18px; border-radius:50%; margin-left:20px; font-weight:bold; font-size:13px }
+  .actions { margin-top:30px; text-align:center; }
+  .actions button { padding:10px 30px; font-size:14px; margin:0 5px; cursor:pointer; border:1px solid #999; background:#fff; border-radius:6px; }
+  .actions button.primary { background:#D63031; color:#fff; border-color:#D63031; }
+  @media print { .actions { display:none; } body { padding:20px; } }
+</style>
+</head><body>
+<div class="meta">No. ${escapeHtml(no)}<br>発行日: ${today}</div>
+<h1>領 収 書</h1>
+<div class="to"><strong>${escapeHtml(b.name)}</strong> 様</div>
+<div class="amount">¥${total.toLocaleString()}-</div>
+<div class="memo">但し 下記の通り</div>
+<table class="items">
+  ${rowsHtml}
+  <tr class="total"><td>合　計</td><td>¥${total.toLocaleString()}</td></tr>
+</table>
+<p class="confirm">上記正に領収いたしました</p>
+<div class="footer">
+  <strong>第14回 北海道金魚祭り 実行委員会</strong><br>
+  お問い合わせ: 080-1063-1833
+  <span class="stamp">領収</span>
+</div>
+<div class="actions">
+  <button class="primary" onclick="window.print()">🖨 印刷 / PDF保存</button>
+  <button onclick="window.close()">閉じる</button>
+</div>
+</body></html>`;
+  const w = window.open('', '_blank', 'width=760,height=900');
+  w.document.write(html);
+  w.document.close();
+  closeModal();
 }
 
 function openExhibitorEdit(idx) {
