@@ -612,7 +612,7 @@ details[open] summary { margin-bottom: 10px; }
   <div class="panel" id="dayBreakdownPanel" style="display:none"></div>
 
   <div class="panel">
-    <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">ブース配置（クリックで編集）<span style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="display:inline-flex;border:1px solid #E0E0E0;border-radius:6px;overflow:hidden"><button class="btn small ghost" id="boothViewGridBtn" onclick="setBoothView('grid')" style="border-radius:0;border:none">🔲 カード</button><button class="btn small ghost" id="boothViewListBtn" onclick="setBoothView('list')" style="border-radius:0;border:none;border-left:1px solid #E0E0E0">📋 リスト</button></span><button class="btn small" onclick="importExhibitorApps()">📥 出店申込を取り込む</button><button class="btn small gold" onclick="importSalesReports()">📥 売上報告を取り込む</button><button class="btn small" onclick="addBooth()">＋ ブースを追加</button></span></h3>
+    <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">ブース配置（クリックで編集）<span style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="display:inline-flex;border:1px solid #E0E0E0;border-radius:6px;overflow:hidden"><button class="btn small ghost" id="boothViewGridBtn" onclick="setBoothView('grid')" style="border-radius:0;border:none">🔲 カード</button><button class="btn small ghost" id="boothViewListBtn" onclick="setBoothView('list')" style="border-radius:0;border:none;border-left:1px solid #E0E0E0">📋 リスト</button></span><button class="btn small" onclick="importExhibitorApps()">📥 出店申込を取り込む</button><button class="btn small gold" onclick="importSalesReports()">📥 売上報告を取り込む</button><button class="btn small" onclick="importStaffReports()">👥 スタッフ人数・住所を取り込む</button><button class="btn small" onclick="addBooth()">＋ ブースを追加</button></span></h3>
     <div id="boothGrid"></div>
   </div>
 
@@ -1865,6 +1865,20 @@ function openExhibitorEdit(idx) {
     <div class="form-row">
       <label class="full">LINEでのやり取りメモ<textarea id="bx_lineNote">${escapeHtml(b.lineNote||'')}</textarea></label>
     </div>
+    <div style="background:#EAF6F2;border:1px solid #B8E0D2;padding:12px 14px;border-radius:8px;margin:14px 0 6px">
+      <div style="font-size:13px;font-weight:700;color:#20624F;margin-bottom:8px">👥 当日スタッフ・📖 記念誌送付先</div>
+      <div class="form-row">
+        <label>当日スタッフ人数<input type="number" id="bx_staffCount" value="${b.staffCount||0}" min="0" placeholder="例：3"></label>
+        <label>郵便番号<input type="text" id="bx_zip" value="${escapeHtml(b.zip||'')}" placeholder="000-0000"></label>
+        <label>宛名<input type="text" id="bx_addressee" value="${escapeHtml(b.addressee||'')}" placeholder="株式会社◯◯ 御中"></label>
+      </div>
+      <div class="form-row">
+        <label class="full">記念誌送付先 住所<textarea id="bx_address" placeholder="北海道◯◯郡◯◯町...">${escapeHtml(b.address||'')}</textarea></label>
+      </div>
+      <div class="form-row">
+        <label class="full">スタッフ人数フォーム備考<input id="bx_staffNote" value="${escapeHtml(b.staffNote||'')}" placeholder="回答時の備考欄"></label>
+      </div>
+    </div>
     <div class="form-actions">
       <button class="btn" onclick="saveExhibitor(${idx})">保存</button>
       <button class="btn gold small" onclick="openSendModal('exhibitor',{preselectedIdx:${idx}})">📨 LINEを送る</button>
@@ -2001,7 +2015,9 @@ async function importStaffReports(forceAll) {
       if (booth) {
         booth.staffCount = Number(sub.staffCount) || 0;
         booth.staffNote = sub.note || '';
+        if (sub.zip && String(sub.zip).trim()) booth.zip = String(sub.zip).trim();
         if (sub.address && String(sub.address).trim()) booth.address = String(sub.address).trim();
+        if (sub.addressee && String(sub.addressee).trim()) booth.addressee = String(sub.addressee).trim();
         imported.push({ id: bid, name: booth.name, count: booth.staffCount, address: booth.address || '' });
       } else {
         unmatched.push(bid);
@@ -2227,6 +2243,11 @@ function saveExhibitor(idx) {
     nextContact: document.getElementById('bx_nextContact').value,
     lineChatUrl: document.getElementById('bx_lineChatUrl').value.trim(),
     lineNote: document.getElementById('bx_lineNote').value,
+    staffCount: Number(document.getElementById('bx_staffCount').value) || 0,
+    staffNote: document.getElementById('bx_staffNote').value.trim(),
+    zip: document.getElementById('bx_zip').value.trim(),
+    address: document.getElementById('bx_address').value.trim(),
+    addressee: document.getElementById('bx_addressee').value.trim(),
   };
   saveState();
   closeModal();
