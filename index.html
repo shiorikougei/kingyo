@@ -594,7 +594,9 @@ details[open] summary { margin-bottom: 10px; }
       <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'出店募集'})">📨 出店募集</span>
       <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'出店確定通知'})">✅ 出店確定通知</span>
       <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'搬入案内'})">🚛 搬入案内</span>
-      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'売上報告依頼'})">📊 売上報告依頼</span>
+      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'売上報告依頼(1日目)'})">📊 売上報告(1日目)</span>
+      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'売上報告依頼(2日目)'})">📊 売上報告(2日目)</span>
+      <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'スタッフ人数報告依頼'})">👥 スタッフ人数報告依頼</span>
       <span class="template-chip" onclick="openSendModal('exhibitor',{presetTemplate:'ビンゴ景品協賛依頼'})">🎁 景品協賛＋SNS素材依頼</span>
       <span class="template-chip" style="background:#D63031;color:white;border-color:#D63031" onclick="openSendModal('exhibitor')">📢 送信先を選んで送る</span>
     </div>
@@ -610,8 +612,8 @@ details[open] summary { margin-bottom: 10px; }
   <div class="panel" id="dayBreakdownPanel" style="display:none"></div>
 
   <div class="panel">
-    <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">ブース配置（クリックで編集）<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small" onclick="importExhibitorApps()">📥 出店申込を取り込む</button><button class="btn small gold" onclick="importSalesReports()">📥 売上報告を取り込む</button><button class="btn small" onclick="addBooth()">＋ ブースを追加</button></span></h3>
-    <div class="booth-grid" id="boothGrid"></div>
+    <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">ブース配置（クリックで編集）<span style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="display:inline-flex;border:1px solid #E0E0E0;border-radius:6px;overflow:hidden"><button class="btn small ghost" id="boothViewGridBtn" onclick="setBoothView('grid')" style="border-radius:0;border:none">🔲 カード</button><button class="btn small ghost" id="boothViewListBtn" onclick="setBoothView('list')" style="border-radius:0;border:none;border-left:1px solid #E0E0E0">📋 リスト</button></span><button class="btn small" onclick="importExhibitorApps()">📥 出店申込を取り込む</button><button class="btn small gold" onclick="importSalesReports()">📥 売上報告を取り込む</button><button class="btn small" onclick="addBooth()">＋ ブースを追加</button></span></h3>
+    <div id="boothGrid"></div>
   </div>
 
   <div class="cards">
@@ -940,7 +942,9 @@ const messageTemplates = {
   '出店募集': `{名前}様\n\n金魚祭り実行委員会です。\nこの度、◯月◯日開催の金魚祭りへの出店者を募集しております。\n\n■ 出店料：1日 2,500円 / 2日 5,000円\n■ 売上歩合：10%（自己申告制）\n\n▼ 出店のお申込みはこちらのフォームから\nhttps://kingyo-uriage.shiorikougei.workers.dev/?form=shutten\n\nご検討よろしくお願いいたします。`,
   '出店確定通知': `{名前}様\n\nお世話になっております。\nこの度はご出店のお申込みありがとうございます。下記の通り確定いたしました。\n\n■ ブース番号：{ブース番号}\n■ 参加日数：\n■ 出店料：\n■ 搬入時間：\n\n後日詳細をご案内します。`,
   '搬入案内': `{名前}様\n\nブース搬入の詳細をお送りいたします。\n\n■ ブース番号：{ブース番号}\n■ 搬入時間：\n■ 搬入場所：\n■ 駐車場：\n■ 当日の連絡先：\n\nお気をつけてお越しください。`,
-  '売上報告依頼': `{名前}様\n\nお疲れ様でした。当日の売上の自己申告をお願いいたします。\n\n▼ こちらのフォームからご報告ください\nhttps://kingyo-uriage.shiorikougei.workers.dev/\n\n（ブース番号：{ブース番号}）\n\nご協力ありがとうございます。`,
+  '売上報告依頼(1日目)': `{名前}様\n\nお疲れ様でした。1日目（5日）の売上の自己申告をお願いいたします。\n\n▼ こちらのフォームからご報告ください（1日目分）\nhttps://kingyo-uriage.shiorikougei.workers.dev/?day=1\n\n（ブース番号：{ブース番号}）\n\nご協力ありがとうございます。`,
+  '売上報告依頼(2日目)': `{名前}様\n\nお疲れ様でした。2日目（6日）の売上の自己申告をお願いいたします。\n\n▼ こちらのフォームからご報告ください（2日目分）\nhttps://kingyo-uriage.shiorikougei.workers.dev/?day=2\n\n（ブース番号：{ブース番号}）\n\nご協力ありがとうございます。`,
+  'スタッフ人数報告依頼': `{名前}様\n\nお世話になっております、金魚祭り実行委員会です🎏\n\n当日ブースに来場されるスタッフ人数の報告と、\nお祭り後にお送りする「記念誌」の送付先住所のご登録をお願いいたします🙇\n\n▼ こちらのフォームからご回答ください\nhttps://kingyo-uriage.shiorikougei.workers.dev/?form=staff\n\n※ スタッフ人数は当日リストバンドの枚数に、ご住所は記念誌の郵送に使わせていただきます。\n\nよろしくお願いいたします。`,
   'ビンゴ景品協賛依頼': `{名前}様\n\nいつもお世話になっております、金魚祭り実行委員会です🎏\n\n当日の景品協賛、およびSNS投稿用の素材提供について、まとめてお願いのご連絡です。\n\n━━━━━━━━━━\n【① ビンゴ大会・抽選会 景品協賛のお願い】\n━━━━━━━━━━\n\nブース並びにキッチンカーを出店される各社より、販売商品現物を2〜3品（原価500円以内）、景品として協賛をお願いします。\n飲食物でのご提供の場合は、本部で交換チケットをお作りし、当選者にお渡しして店頭にて引き換えさせていただきます。\n（交換チケットの有効期限は当日のみです）\n\n▼ こちらのフォームからご回答をお願いいたします\nhttps://kingyo-uriage.shiorikougei.workers.dev/?form=bingo\n\n■ ご協力方法：\n　①販売商品で協賛\n　②その他の物品で協賛（野菜・お米・花など）\n　③500円で協賛\n\n━━━━━━━━━━\n【② SNS素材のご提供のお願い】\n━━━━━━━━━━\n\n事前のInstagram告知に使わせていただく素材のご提供もお願いいたします。\n動画・画像どちらでもOKです。\n\n▼ 動画素材の場合\n・店舗紹介＋当日販売するものの紹介動画\n・編集はこちらで対応します\n・Instagramリールで投稿させていただきます\n\n▼ 画像素材の場合\n・3〜5枚程度あると嬉しいです\n・販売するものの紹介文もあれば添えてください\n・こちらで動画化して、Instagramリールで投稿します\n\n▼ Instagramアカウントについて\n・アカウントをお持ちで「メンションOK」の方は、アカウントIDもあわせてお送りください（例：@your_id）\n\n素材はこのトークにそのまま添付してお送りください🙏\n\n━━━━━━━━━━\n\nお手数をおかけしますが、ご負担のない範囲でご協力いただけますと大変助かります。\nどうぞよろしくお願いいたします。`,
 };
 
@@ -1501,14 +1505,44 @@ function renderExhibitors() {
   }
 
   const grid = document.getElementById('boothGrid');
-  grid.innerHTML = state.exhibitors.map((b, i) => `
-    <div class="booth ${b.name?'has-data':''} ${b.status}" onclick="openExhibitorEdit(${i})">
-      <div class="booth-id" style="display:flex;justify-content:space-between;align-items:center;gap:4px">${b.id}${b.lineChatUrl?'<span style="background:#06C755;color:white;font-size:9px;padding:1px 5px;border-radius:999px;font-weight:700;letter-spacing:0.05em">LINE</span>':''}</div>
-      <div class="booth-name">${escapeHtml(b.name) || '<span style="color:#BDC3C7">空き</span>'}</div>
-      ${b.fee?`<div class="booth-fee">¥${b.fee.toLocaleString()} / ${b.days}日</div>`:''}
-      ${b.name?`<div style="margin-top:6px"><span class="status-badge status-${b.status}">${b.status}</span></div>`:''}
-    </div>
-  `).join('');
+  const viewMode = state.settings.boothView || 'grid';
+  // Highlight active view button
+  const gb = document.getElementById('boothViewGridBtn');
+  const lb = document.getElementById('boothViewListBtn');
+  if (gb) gb.style.background = viewMode === 'grid' ? '#FEF5E7' : '';
+  if (lb) lb.style.background = viewMode === 'list' ? '#FEF5E7' : '';
+  if (viewMode === 'list') {
+    grid.className = '';
+    const dayLabel = (b) => Number(b.days) === 2 ? '両日' : (b.whichDay === '1' ? '1日目' : (b.whichDay === '2' ? '2日目' : '未定'));
+    const rows = state.exhibitors.map((b, i) => {
+      if (!b.name) return `<tr style="opacity:0.4;cursor:pointer" onclick="openExhibitorEdit(${i})"><td><strong>${escapeHtml(b.id)}</strong></td><td colspan="8" style="color:#BDC3C7">空き</td></tr>`;
+      return `<tr style="cursor:pointer" onclick="openExhibitorEdit(${i})">
+        <td><strong>${escapeHtml(b.id)}</strong>${b.lineChatUrl?' <span style="background:#06C755;color:white;font-size:9px;padding:1px 5px;border-radius:999px;font-weight:700">LINE</span>':''}</td>
+        <td>${escapeHtml(b.name)}</td>
+        <td>${escapeHtml(b.category || '-')}</td>
+        <td>${dayLabel(b)}</td>
+        <td class="num">${b.fee ? '¥' + b.fee.toLocaleString() : '-'}</td>
+        <td><span class="status-badge status-${b.status}">${b.status}</span></td>
+        <td>${escapeHtml(b.contact || '-')}</td>
+        <td>${escapeHtml(b.phone || '-')}</td>
+        <td class="num">${b.staffCount ? '👥' + b.staffCount + '名' : '-'}</td>
+      </tr>`;
+    }).join('');
+    grid.innerHTML = `<div style="overflow-x:auto"><table class="data-table" style="font-size:12px;min-width:880px">
+      <thead><tr><th>ブース</th><th>出店名</th><th>カテゴリ</th><th>参加</th><th class="num">出店料</th><th>状態</th><th>連絡先</th><th>電話</th><th class="num">スタッフ</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+  } else {
+    grid.className = 'booth-grid';
+    grid.innerHTML = state.exhibitors.map((b, i) => `
+      <div class="booth ${b.name?'has-data':''} ${b.status}" onclick="openExhibitorEdit(${i})">
+        <div class="booth-id" style="display:flex;justify-content:space-between;align-items:center;gap:4px">${b.id}${b.lineChatUrl?'<span style="background:#06C755;color:white;font-size:9px;padding:1px 5px;border-radius:999px;font-weight:700;letter-spacing:0.05em">LINE</span>':''}</div>
+        <div class="booth-name">${escapeHtml(b.name) || '<span style="color:#BDC3C7">空き</span>'}</div>
+        ${b.fee?`<div class="booth-fee">¥${b.fee.toLocaleString()} / ${b.days}日</div>`:''}
+        ${b.name?`<div style="margin-top:6px"><span class="status-badge status-${b.status}">${b.status}</span></div>`:''}
+      </div>
+    `).join('');
+  }
 
   // Cards
   const confirmed = state.exhibitors.filter(e => e.status === '確定').length;
@@ -1595,7 +1629,7 @@ function renderExhibitors() {
       return `<td><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px"><input type="checkbox" ${chk} onchange="togglePaid('${boothId}','${kind}',this.checked)"><span style="${style}">¥${amount.toLocaleString()}</span></label></td>`;
     };
     cp.innerHTML = `
-      <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">💵 当日集金リスト<span style="font-size:12px;font-weight:normal;color:#666">回収済 ${doneCount}/${collect.length}店</span></h3>
+      <h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">💵 当日集金リスト<span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-size:12px;font-weight:normal;color:#666">回収済 ${doneCount}/${collect.length}店</span><button class="btn small" onclick="importStaffReports()">👥 スタッフ人数を取り込む</button></span></h3>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;font-size:13px;margin-bottom:12px">
         <div style="background:#FADBD8;border-radius:8px;padding:12px;border-left:4px solid #C0392B"><div style="font-size:11px;color:#888">未回収 合計</div><div style="font-size:24px;font-weight:700">¥${totalRemain.toLocaleString()}</div></div>
         <div style="background:#D5F5E3;border-radius:8px;padding:12px;border-left:4px solid #27AE60"><div style="font-size:11px;color:#888">回収済み</div><div style="font-size:24px;font-weight:700">¥${(totalFull-totalRemain).toLocaleString()}</div></div>
@@ -1774,9 +1808,9 @@ function printReceipt(boothId) {
 <div class="footer">
   <div class="footer-info">
     <strong>北海道金魚祭り実行委員会</strong><br>
-    お問合せ：080-1863-1033（西田）
+    実行委員長　金子正人<br>
+    北海道樺戸郡月形町新田
   </div>
-  <div class="stamp">西田</div>
 </div>
 <div class="actions">
   <button class="primary" onclick="window.print()">🖨 印刷 / PDF保存</button>
@@ -1937,6 +1971,62 @@ async function importSalesReports(forceAll) {
   }
 }
 
+async function importStaffReports(forceAll) {
+  showSyncStatus('loading');
+  try {
+    const res = await fetch('https://api.jsonbin.io/v3/b/' + SUBMISSIONS_BIN_ID + '/latest?t=' + Date.now(), { headers: { 'X-Master-Key': JSONBIN_KEY } });
+    if (!res.ok) throw new Error('読み込み失敗 ' + res.status);
+    const data = await res.json();
+    const allSubs = Array.isArray((data.record||{}).staffReports) ? data.record.staffReports : [];
+    showSyncStatus('synced');
+    if (allSubs.length === 0) { toast('スタッフ人数の回答はまだ届いていません'); return; }
+    const since = state.settings.lastStaffImport || '';
+    const subs = forceAll ? allSubs : allSubs.filter(function(s){ return String(s.submittedAt||'') > since; });
+    if (subs.length === 0) {
+      let h = '<button class="modal-close" onclick="closeModal()">×</button><h3>👥 スタッフ人数の取り込み</h3><p style="font-size:13px;color:#555">前回以降の新しい回答はありません。</p><div class="form-actions"><button class="btn ghost" onclick="importStaffReports(true)">全' + allSubs.length + '件を取り込み直す</button><button class="btn secondary" onclick="closeModal()">閉じる</button></div>';
+      showModal(h);
+      return;
+    }
+    const latest = {};
+    subs.forEach(function(s){
+      const bid = String(s.boothId || '').trim();
+      if (!bid) return;
+      if (!latest[bid] || String(s.submittedAt||'') > String(latest[bid].submittedAt||'')) latest[bid] = s;
+    });
+    const imported = [];
+    const unmatched = [];
+    Object.keys(latest).forEach(function(bid){
+      const sub = latest[bid];
+      const booth = state.exhibitors.find(function(e){ return e.id === bid; });
+      if (booth) {
+        booth.staffCount = Number(sub.staffCount) || 0;
+        booth.staffNote = sub.note || '';
+        if (sub.address && String(sub.address).trim()) booth.address = String(sub.address).trim();
+        imported.push({ id: bid, name: booth.name, count: booth.staffCount, address: booth.address || '' });
+      } else {
+        unmatched.push(bid);
+      }
+    });
+    state.settings.lastStaffImport = new Date().toISOString();
+    saveState();
+    renderExhibitors();
+    let html = '<button class="modal-close" onclick="closeModal()">×</button><h3>👥 スタッフ人数 取り込み結果</h3>';
+    html += '<p style="font-size:13px;color:#555">' + imported.length + '件の回答をブースに反映しました。合計 ' + imported.reduce(function(s,r){return s+r.count;},0) + '名。</p>';
+    if (imported.length) {
+      html += '<table class="data-table"><thead><tr><th>ブース</th><th>出店名</th><th class="num">人数</th><th>記念誌送付先住所</th></tr></thead><tbody>';
+      html += imported.map(function(r){ return '<tr><td>' + escapeHtml(r.id) + '</td><td>' + escapeHtml(r.name||'') + '</td><td class="num">' + r.count + '名</td><td style="font-size:12px">' + escapeHtml(r.address||'') + '</td></tr>'; }).join('');
+      html += '</tbody></table>';
+    }
+    if (unmatched.length) html += '<p style="font-size:12px;color:#C0392B;margin-top:12px">⚠ 未マッチ：' + escapeHtml(unmatched.join(', ')) + '</p>';
+    html += '<div class="form-actions"><button class="btn secondary" onclick="closeModal()">閉じる</button></div>';
+    showModal(html);
+  } catch (e) {
+    console.error(e);
+    showSyncStatus('error');
+    toast('取り込みに失敗しました：' + e.message);
+  }
+}
+
 async function importBingoContributions(forceAll) {
   showSyncStatus('loading');
   try {
@@ -2085,6 +2175,11 @@ async function importPerformerApps() {
   }
 }
 
+function setBoothView(mode) {
+  state.settings.boothView = mode;
+  saveState();
+  renderExhibitors();
+}
 function renumberBooths() {
   let changed = false;
   state.exhibitors.forEach(function(b, i) {
@@ -2706,7 +2801,7 @@ function openSendModal(type, options) {
   const isPerf = type === 'performer';
   const list = isPerf ? state.performers : state.exhibitors;
   const perfTemplates = ['出演依頼','スケジュール確認','リマインダー','お礼','ポスター素材依頼'];
-  const exhTemplates = ['出店募集','出店確定通知','搬入案内','売上報告依頼','ビンゴ景品協賛依頼'];
+  const exhTemplates = ['出店募集','出店確定通知','搬入案内','売上報告依頼(1日目)','売上報告依頼(2日目)','スタッフ人数報告依頼','ビンゴ景品協賛依頼'];
   const templates = isPerf ? perfTemplates : exhTemplates;
   const presetTemplate = options.presetTemplate || templates[0];
   const preselected = options.preselectedIdx !== undefined ? [options.preselectedIdx] : [];
@@ -2960,10 +3055,16 @@ function openSettings() {
         <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/?form=shutten" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0 8px">
         <strong>出演応募フォーム</strong><br>
         <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/?form=shutsuen" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0 8px">
-        <strong>売上報告フォーム</strong><br>
+        <strong>売上報告フォーム（1日目・2日目まとめて）</strong><br>
         <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0 8px">
+        <strong>売上報告フォーム（1日目のみ）</strong><br>
+        <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/?day=1" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0 8px">
+        <strong>売上報告フォーム（2日目のみ）</strong><br>
+        <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/?day=2" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0 8px">
         <strong>ビンゴ景品協賛フォーム</strong><br>
-        <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/?form=bingo" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0">
+        <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/?form=bingo" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0 8px">
+        <strong>スタッフ人数報告フォーム</strong><br>
+        <input readonly value="https://kingyo-uriage.shiorikougei.workers.dev/?form=staff" onclick="this.select()" style="width:100%;padding:6px;font-size:11px;border:1px solid #D5D5D5;border-radius:5px;margin:3px 0">
       </div>
     </details>
     <h3 style="margin-top:18px">予算（収入）</h3>
