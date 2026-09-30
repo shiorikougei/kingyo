@@ -508,6 +508,11 @@ details[open] summary { margin-bottom: 10px; }
     <div class="card green"><div class="label">実績（支出）</div><div class="value" id="acExpenseActual">¥0</div></div>
   </div>
 
+  <div class="panel" id="balancePanel" style="background:linear-gradient(135deg,#FFF8E7,#F4ECE0);border:1px solid #E8DFC5">
+    <h3 style="margin-top:0">💰 収支サマリー（実績）</h3>
+    <div id="balanceSummary"></div>
+  </div>
+
   <div class="panel">
     <h3>収入：予算 vs 実績</h3>
     <table class="data-table" id="incomeTable"></table>
@@ -1210,10 +1215,14 @@ function sumBoothCommissionCollected() {
     return total + (b.day1CommissionPaid ? d1Comm : 0) + (b.day2CommissionPaid ? d2Comm : 0);
   }, 0);
 }
+function sumSponsorPaid() {
+  return (state.sponsors || []).filter(s => s && s.status === '入金済').reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+}
 function getIncomeActual(category) {
   let base = sumIncome(category);
   if (category === '出店料収入') base += sumBoothFeeCollected();
   if (category === '売上歩合収入') base += sumBoothCommissionCollected();
+  if (category === '協賛金収入') base += sumSponsorPaid();
   return base;
 }
 
@@ -1248,6 +1257,7 @@ function renderAccounting() {
     let autoNote = '';
     if (i.name === '出店料収入') autoNote = '<div style="font-size:11px;color:#3498DB;margin-top:2px">🔗 出店データ連動：¥' + sumBoothFeeCollected().toLocaleString() + '</div>';
     if (i.name === '売上歩合収入') autoNote = '<div style="font-size:11px;color:#3498DB;margin-top:2px">🔗 出店データ連動：¥' + sumBoothCommissionCollected().toLocaleString() + '</div>';
+    if (i.name === '協賛金収入') autoNote = '<div style="font-size:11px;color:#3498DB;margin-top:2px">🔗 協賛データ連動（入金済のみ）：¥' + sumSponsorPaid().toLocaleString() + '</div>';
     return `<tr><td>${escapeHtml(i.name)}${autoNote}</td><td class="num">${fmt(i.budget)}</td><td class="num">${fmt(actual)}</td><td class="num" style="color:${diff<0?'#C0392B':'#1E8449'}">${fmt(diff)}</td><td class="num">${pct}%<div class="budget-bar"><div class="fill" style="width:${Math.min(100,pct)}%;background:#F1C40F"></div></div></td></tr>`;
   }).join('');
   document.getElementById('incomeTable').innerHTML = `<thead><tr><th>科目</th><th class="num">予算</th><th class="num">実績</th><th class="num">差額</th><th class="num">達成率</th></tr></thead><tbody>${incomeRows}</tbody>`;
@@ -1284,6 +1294,48 @@ function renderAccounting() {
   document.getElementById('acIncomeActual').textContent = fmt(incomeActual);
   document.getElementById('acExpenseBudget').textContent = fmt(expenseBudget);
   document.getElementById('acExpenseActual').textContent = fmt(expenseActual);
+
+  // 収支サマリー
+  const balance = incomeActual - expenseActual;
+  const isPositive = balance >= 0;
+  const balanceColor = isPositive ? '#1E8449' : '#C0392B';
+  const balanceLabel = isPositive ? '黒字' : '赤字';
+  const balanceIcon = isPositive ? '📈' : '📉';
+  const expensePct = incomeActual > 0 ? Math.min(100, (expenseActual / incomeActual * 100)) : 0;
+  const remainPct = incomeActual > 0 ? (100 - expensePct) : 0;
+  const budgetBalance = incomeBudget - expenseBudget;
+  const budgetBalanceColor = budgetBalance >= 0 ? '#1E8449' : '#C0392B';
+  document.getElementById('balanceSummary').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:16px;align-items:center">
+      <div style="text-align:center">
+        <div style="font-size:12px;color:#666;margin-bottom:4px">実績収入</div>
+        <div style="font-size:22px;font-weight:700;color:#B7950B">¥${incomeActual.toLocaleString()}</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:12px;color:#666;margin-bottom:4px">実績支出</div>
+        <div style="font-size:22px;font-weight:700;color:#2874A6">¥${expenseActual.toLocaleString()}</div>
+      </div>
+      <div style="text-align:center;border-left:2px solid #E8DFC5;padding-left:16px">
+        <div style="font-size:12px;color:#666;margin-bottom:4px">${balanceIcon} 差引（実績）</div>
+        <div style="font-size:26px;font-weight:800;color:${balanceColor}">${isPositive?'+':''}¥${balance.toLocaleString()}</div>
+        <div style="font-size:11px;color:${balanceColor};font-weight:600;margin-top:2px">${balanceLabel}</div>
+      </div>
+    </div>
+    <div style="margin-top:14px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#666;margin-bottom:4px">
+        <span>支出比率：${expensePct.toFixed(1)}%</span>
+        <span>${incomeActual > 0 ? '手残り：' + remainPct.toFixed(1) + '%' : '収入未計上'}</span>
+      </div>
+      <div style="height:14px;background:#EAEAEA;border-radius:7px;overflow:hidden;display:flex">
+        <div style="width:${expensePct}%;background:#2874A6"></div>
+        <div style="width:${remainPct}%;background:#F1C40F"></div>
+      </div>
+    </div>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px dashed #D5C99E;font-size:12px;color:#555;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <span>参考：予算上の収支見込 <strong style="color:${budgetBalanceColor}">${budgetBalance>=0?'+':''}¥${budgetBalance.toLocaleString()}</strong></span>
+      <span>予算比 収入 <strong>${incomeBudget>0?((incomeActual/incomeBudget)*100).toFixed(1):'0.0'}%</strong> / 支出 <strong>${expenseBudget>0?((expenseActual/expenseBudget)*100).toFixed(1):'0.0'}%</strong></span>
+    </div>
+  `;
 
   // Advance summary
   const advList = state.expenseLog.filter(e => e.advancedBy && !e.reimbursed);
