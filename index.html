@@ -2542,16 +2542,28 @@ function deleteSponsor(idx) {
 const SPONSOR_CSV_HEADERS = ['企業名','担当者名','郵便番号','住所','電話番号','メール','プラン','金額','制作物','備考','入金状況','ステータス','領収書','請求書'];
 
 function downloadSponsorCsvTemplate() {
-  const sample = [
-    SPONSOR_CSV_HEADERS.join(','),
-    '"サンプル株式会社","山田 太郎","000-0000","北海道札幌市中央区1-1-1","011-000-0000","sample@example.com","A","50000","HP広告・バナー","備考メモ","入金","制作完了","",""'
-  ].join('\n');
-  const blob = new Blob(['﻿' + sample], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = '協賛CSVテンプレート.csv';
-  a.click();
-  toast('CSVテンプレートをダウンロードしました');
+  try {
+    const sample = [
+      SPONSOR_CSV_HEADERS.join(','),
+      '"サンプル株式会社","山田 太郎","000-0000","北海道札幌市中央区1-1-1","011-000-0000","sample@example.com","A","50000","HP広告・バナー","備考メモ","入金","制作完了","",""'
+    ].join('\r\n');
+    const blob = new Blob(['﻿' + sample], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sponsor_template.csv';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+    toast('CSVテンプレートをダウンロードしました');
+  } catch (e) {
+    console.error(e);
+    toast('ダウンロードに失敗しました：' + e.message);
+  }
 }
 
 // CSVパーサ（RFC4180準拠：ダブルクォート・改行対応）
