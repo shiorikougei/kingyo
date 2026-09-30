@@ -562,6 +562,9 @@ details[open] summary { margin-bottom: 10px; }
         </select>
       </label>
       <label>立替者（誰かが立て替えた場合のみ）<input type="text" id="exAdvancedBy" placeholder="例：山田"></label>
+      <label>支払状況
+        <select id="exPaidStatus"><option value="true">支払済</option><option value="false">未払（予定）</option></select>
+      </label>
       <label class="full">メモ<input type="text" id="exNote" placeholder="領収書の保管先など"></label>
     </div>
     <div class="form-actions">
@@ -1238,6 +1241,113 @@ function getExpenseActual(category) {
   return base;
 }
 
+// ---- 内訳ビルダー ----
+function toggleAccDetail(key) {
+  const row = document.getElementById('detail-' + key);
+  const arrow = document.querySelector('[data-arrow="' + key + '"]');
+  if (!row) return;
+  if (row.style.display === 'none') {
+    row.style.display = '';
+    if (arrow) arrow.textContent = '▼';
+  } else {
+    row.style.display = 'none';
+    if (arrow) arrow.textContent = '▶';
+  }
+}
+
+function buildIncomeBreakdown(category) {
+  let html = '';
+  // 出店データ由来（出店料）
+  if (category === '出店料収入') {
+    const rows = [];
+    (state.exhibitors || []).forEach(b => {
+      if (!b || !b.name) return;
+      const days = Number(b.days) || 0;
+      const wd = b.whichDay || '';
+      const fee = Number(b.fee) || 0;
+      if (fee <= 0) return;
+      if (days === 2) {
+        const d1 = Math.floor(fee/2);
+        const d2 = fee - d1;
+        if (b.day1FeePaid) rows.push({ src:'出店データ', label:b.id+' '+b.name+'（1日目分）', amount:d1 });
+        if (b.day2FeePaid) rows.push({ src:'出店データ', label:b.id+' '+b.name+'（2日目分）', amount:d2 });
+      } else if (days === 1) {
+        const paid = (wd==='2' ? b.day2FeePaid : b.day1FeePaid) || (!wd && b.day1FeePaid);
+        if (paid) rows.push({ src:'出店データ', label:b.id+' '+b.name, amount:fee });
+      }
+    });
+    state.incomeLog.filter(e => e.category === category).forEach(e => rows.push({ src:'手動入力', label:e.source||'', amount:Number(e.amount)||0, date:e.date }));
+    html += renderBreakdownTable(rows);
+    return html;
+  }
+  // 出店データ由来（歩合）
+  if (category === '売上歩合収入') {
+    const rows = [];
+    (state.exhibitors || []).forEach(b => {
+      if (!b || !b.name) return;
+      const rate = (Number(b.commissionRate)||10)/100;
+      const d1 = Math.floor((Number(b.salesDay1)||0)*rate);
+      const d2 = Math.floor((Number(b.salesDay2)||0)*rate);
+      if (b.day1CommissionPaid && d1 > 0) rows.push({ src:'出店データ', label:b.id+' '+b.name+'（1日目 '+(rate*100).toFixed(0)+'%）', amount:d1 });
+      if (b.day2CommissionPaid && d2 > 0) rows.push({ src:'出店データ', label:b.id+' '+b.name+'（2日目 '+(rate*100).toFixed(0)+'%）', amount:d2 });
+    });
+    state.incomeLog.filter(e => e.category === category).forEach(e => rows.push({ src:'手動入力', label:e.source||'', amount:Number(e.amount)||0, date:e.date }));
+    html += renderBreakdownTable(rows);
+    return html;
+  }
+  // 協賛
+  if (category === '協賛金収入') {
+    const rows = [];
+    (state.sponsors || []).filter(s => s.status === '入金済').forEach(s => {
+      rows.push({ src:'協賛データ', label:s.company+(s.plan?'（'+s.plan+'）':''), amount:Number(s.amount)||0, date:s.paymentDate||'' });
+    });
+    state.incomeLog.filter(e => e.category === category).forEach(e => rows.push({ src:'手動入力', label:e.source||'', amount:Number(e.amount)||0, date:e.date }));
+    html += renderBreakdownTable(rows);
+    return html;
+  }
+  // 通常の手動収入
+  const rows = state.incomeLog.filter(e => e.category === category).map(e => ({ src:'手動入力', label:e.source||'', amount:Number(e.amount)||0, date:e.date, note:e.note }));
+  html += renderBreakdownTable(rows);
+  return html;
+}
+
+function buildExpenseBreakdown(category) {
+  const rows = [];
+  // スタッフ支払（人件費）
+  if (category === '人件費') {
+    (state.staff || []).forEach(s => {
+      const amt = Number(s.payAmount) || 0;
+      if (amt <= 0) return;
+      rows.push({ src: s.paid ? 'スタッフ✓済' : 'スタッフ未払', label:s.name+(s.shift?'（'+s.shift+'）':''), amount:amt, date:s.paidDate||'', paid:s.paid });
+    });
+  }
+  state.expenseLog.filter(e => e.category === category).forEach(e => {
+    const isPaid = e.paid !== false;
+    rows.push({ src: isPaid ? '手動入力' : '未払予定', label:(e.vendor||'')+(e.advancedBy?' 立替:'+e.advancedBy:''), amount:Number(e.amount)||0, date:e.date, note:e.note, paid:isPaid });
+  });
+  return renderBreakdownTable(rows);
+}
+
+function renderBreakdownTable(rows) {
+  if (!rows || rows.length === 0) return '<div style="color:#999;font-size:12px;padding:6px 0">内訳データはまだありません</div>';
+  const total = rows.reduce((s,r)=>s+(Number(r.amount)||0),0);
+  return '<table style="width:100%;font-size:12px;border-collapse:collapse">' +
+    '<thead><tr style="border-bottom:1px solid #E0E0E0;color:#666"><th style="text-align:left;padding:4px 6px;font-weight:600">種別</th><th style="text-align:left;padding:4px 6px;font-weight:600">内容</th><th style="text-align:left;padding:4px 6px;font-weight:600">日付</th><th style="text-align:right;padding:4px 6px;font-weight:600">金額</th></tr></thead><tbody>' +
+    rows.map(r => {
+      let srcBadge = r.src;
+      let bg = '#EBF5FB', color = '#2980B9';
+      if (r.src === '未払予定') { bg='#FEF5E7'; color='#B7950B'; srcBadge='💸 未払予定'; }
+      else if (r.src === '出店データ') { bg='#E8F8F1'; color='#1E8449'; }
+      else if (r.src === '協賛データ') { bg='#FEF9E7'; color='#B7950B'; }
+      else if (r.src === 'スタッフ✓済') { bg='#D5F5E3'; color='#1E8449'; srcBadge='✓ 支払済(スタッフ)'; }
+      else if (r.src === 'スタッフ未払') { bg='#FEF5E7'; color='#B7950B'; srcBadge='💸 未払(スタッフ)'; }
+      else if (r.src === '手動入力') { bg='#F4F4F4'; color='#555'; }
+      return '<tr style="border-bottom:1px solid #F0F0F0"><td style="padding:4px 6px"><span style="background:'+bg+';color:'+color+';padding:2px 8px;border-radius:4px;font-size:11px;white-space:nowrap">'+srcBadge+'</span></td><td style="padding:4px 6px">'+escapeHtml(r.label||'')+(r.note?' <span style="color:#999">('+escapeHtml(r.note)+')</span>':'')+'</td><td style="padding:4px 6px;color:#666">'+escapeHtml(r.date||'')+'</td><td style="padding:4px 6px;text-align:right;font-weight:600'+(r.paid===false?';color:#B7950B':'')+'">¥'+(Number(r.amount)||0).toLocaleString()+'</td></tr>';
+    }).join('') +
+    '<tr style="border-top:2px solid #999;background:#FAFAFA"><td colspan="3" style="padding:6px;text-align:right;font-weight:700">合計</td><td style="padding:6px;text-align:right;font-weight:700">¥'+total.toLocaleString()+'</td></tr>' +
+    '</tbody></table>';
+}
+
 function renderAccounting() {
   // Backward compat
   if (!Array.isArray(state.incomeLog)) state.incomeLog = [];
@@ -1262,7 +1372,7 @@ function renderAccounting() {
   }
 
   // Income table
-  const incomeRows = state.settings.income.map(i => {
+  const incomeRows = state.settings.income.map((i, iidx) => {
     const actual = getIncomeActual(i.name);
     const diff = actual - i.budget;
     const pct = i.budget > 0 ? (actual / i.budget * 100).toFixed(1) : '0.0';
@@ -1270,7 +1380,12 @@ function renderAccounting() {
     if (i.name === '出店料収入') autoNote = '<div style="font-size:11px;color:#3498DB;margin-top:2px">🔗 出店データ連動：¥' + sumBoothFeeCollected().toLocaleString() + '</div>';
     if (i.name === '売上歩合収入') autoNote = '<div style="font-size:11px;color:#3498DB;margin-top:2px">🔗 出店データ連動：¥' + sumBoothCommissionCollected().toLocaleString() + '</div>';
     if (i.name === '協賛金収入') autoNote = '<div style="font-size:11px;color:#3498DB;margin-top:2px">🔗 協賛データ連動（入金済のみ）：¥' + sumSponsorPaid().toLocaleString() + '</div>';
-    return `<tr><td>${escapeHtml(i.name)}${autoNote}</td><td class="num">${fmt(i.budget)}</td><td class="num">${fmt(actual)}</td><td class="num" style="color:${diff<0?'#C0392B':'#1E8449'}">${fmt(diff)}</td><td class="num">${pct}%<div class="budget-bar"><div class="fill" style="width:${Math.min(100,pct)}%;background:#F1C40F"></div></div></td></tr>`;
+    const detailHtml = buildIncomeBreakdown(i.name);
+    const hasDetail = detailHtml.trim().length > 0;
+    const arrow = hasDetail ? '<span style="color:#888;font-size:11px;margin-right:6px;transition:transform 0.2s;display:inline-block" data-arrow="income-'+iidx+'">▶</span>' : '';
+    const clickAttr = hasDetail ? `onclick="toggleAccDetail('income-${iidx}')" style="cursor:pointer"` : '';
+    return `<tr ${clickAttr}><td>${arrow}${escapeHtml(i.name)}${autoNote}</td><td class="num">${fmt(i.budget)}</td><td class="num">${fmt(actual)}</td><td class="num" style="color:${diff<0?'#C0392B':'#1E8449'}">${fmt(diff)}</td><td class="num">${pct}%<div class="budget-bar"><div class="fill" style="width:${Math.min(100,pct)}%;background:#F1C40F"></div></div></td></tr>` +
+      (hasDetail ? `<tr id="detail-income-${iidx}" style="display:none;background:#FFFBF0"><td colspan="5" style="padding:8px 14px">${detailHtml}</td></tr>` : '');
   }).join('');
   document.getElementById('incomeTable').innerHTML = `<thead><tr><th>科目</th><th class="num">予算</th><th class="num">実績</th><th class="num">差額</th><th class="num">達成率</th></tr></thead><tbody>${incomeRows}</tbody>`;
 
@@ -1289,7 +1404,7 @@ function renderAccounting() {
   }
 
   // Expense table
-  const expenseRows = state.settings.expense.map(e => {
+  const expenseRows = state.settings.expense.map((e, eidx) => {
     const actual = getExpenseActual(e.name);
     const diff = e.budget - actual;
     const pct = e.budget > 0 ? (actual / e.budget * 100).toFixed(1) : '0.0';
@@ -1299,7 +1414,12 @@ function renderAccounting() {
       const staffUnpaid = sumStaffPayAll() - staffPaid;
       autoNote = '<div style="font-size:11px;color:#3498DB;margin-top:2px">🔗 スタッフ支払連動：¥' + staffPaid.toLocaleString() + (staffUnpaid>0?' <span style="color:#B7950B">（未払¥'+staffUnpaid.toLocaleString()+'）</span>':'') + '</div>';
     }
-    return `<tr><td>${escapeHtml(e.name)}${autoNote}</td><td class="num">${fmt(e.budget)}</td><td class="num">${fmt(actual)}</td><td class="num" style="color:${diff<0?'#C0392B':'#1E8449'}">${fmt(diff)}</td><td class="num">${pct}%<div class="budget-bar ${actual>e.budget?'over':''}"><div class="fill" style="width:${Math.min(100,pct)}%"></div></div></td></tr>`;
+    const detailHtml = buildExpenseBreakdown(e.name);
+    const hasDetail = detailHtml.trim().length > 0;
+    const arrow = hasDetail ? '<span style="color:#888;font-size:11px;margin-right:6px;display:inline-block" data-arrow="expense-'+eidx+'">▶</span>' : '';
+    const clickAttr = hasDetail ? `onclick="toggleAccDetail('expense-${eidx}')" style="cursor:pointer"` : '';
+    return `<tr ${clickAttr}><td>${arrow}${escapeHtml(e.name)}${autoNote}</td><td class="num">${fmt(e.budget)}</td><td class="num">${fmt(actual)}</td><td class="num" style="color:${diff<0?'#C0392B':'#1E8449'}">${fmt(diff)}</td><td class="num">${pct}%<div class="budget-bar ${actual>e.budget?'over':''}"><div class="fill" style="width:${Math.min(100,pct)}%"></div></div></td></tr>` +
+      (hasDetail ? `<tr id="detail-expense-${eidx}" style="display:none;background:#F4F9F4"><td colspan="5" style="padding:8px 14px">${detailHtml}</td></tr>` : '');
   }).join('');
   document.getElementById('expenseTable').innerHTML = `<thead><tr><th>科目</th><th class="num">予算</th><th class="num">実績</th><th class="num">残額</th><th class="num">消化率</th></tr></thead><tbody>${expenseRows}</tbody>`;
 
@@ -1383,9 +1503,20 @@ function renderAccounting() {
           : `<button class="btn small" onclick="toggleExpenseReimbursed(${realIdx})">精算済に</button>`;
         advCell = `<div style="font-size:12px"><strong>${escapeHtml(e.advancedBy)}</strong> ${badge}<br><div style="margin-top:3px">${btn}</div></div>`;
       }
-      return `<tr><td>${e.date}</td><td>${escapeHtml(e.vendor)}</td><td>${escapeHtml(e.category)}</td><td class="num">${fmt(e.amount)}</td><td>${escapeHtml(e.method)}</td><td>${advCell}</td><td>${escapeHtml(e.note||'')} <button class="btn small ghost" onclick="openExpenseEdit(${realIdx})">編集</button> <button class="btn small danger" onclick="deleteExpense(${realIdx})">削除</button></td></tr>`;
+      const isPaid = e.paid !== false;
+      const paidCell = isPaid
+        ? `<span class="status-badge status-完了">✓ 支払済</span> <button class="btn small ghost" onclick="toggleExpensePaid(${realIdx})">未払に</button>`
+        : `<span class="status-badge" style="background:#FEF5E7;color:#B7950B">💸 未払</span> <button class="btn small" onclick="toggleExpensePaid(${realIdx})">支払済に</button>`;
+      const rowStyle = isPaid ? '' : 'background:#FEFCF3';
+      return `<tr style="${rowStyle}"><td>${e.date}</td><td>${escapeHtml(e.vendor)}</td><td>${escapeHtml(e.category)}</td><td class="num">${fmt(e.amount)}</td><td>${escapeHtml(e.method)}</td><td>${paidCell}</td><td>${advCell}</td><td>${escapeHtml(e.note||'')} <button class="btn small ghost" onclick="openExpenseEdit(${realIdx})">編集</button> <button class="btn small danger" onclick="deleteExpense(${realIdx})">削除</button></td></tr>`;
     }).join('');
-  document.getElementById('expenseLogTable').innerHTML = `<thead><tr><th>日付</th><th>支払先</th><th>費目</th><th class="num">金額</th><th>方法</th><th>立替</th><th>メモ</th></tr></thead><tbody>${logRows}</tbody>`;
+  document.getElementById('expenseLogTable').innerHTML = `<thead><tr><th>日付</th><th>支払先</th><th>費目</th><th class="num">金額</th><th>方法</th><th>支払状況</th><th>立替</th><th>メモ</th></tr></thead><tbody>${logRows}</tbody>`;
+  // 未払サマリー
+  const unpaidTotal = state.expenseLog.filter(x => x.paid === false).reduce((s,x)=>s+(Number(x.amount)||0),0);
+  const advSumEl = document.getElementById('advanceSummary');
+  if (advSumEl && unpaidTotal > 0) {
+    advSumEl.innerHTML = advSumEl.innerHTML + ' <span style="background:#FEF5E7;color:#B7950B;padding:6px 12px;border-radius:6px;font-weight:600;margin-left:8px">💸 未払支出 ' + fmt(unpaidTotal) + '</span>';
+  }
 }
 
 function addIncome() {
@@ -1457,6 +1588,8 @@ function saveIncomeEdit(idx) {
 
 function addExpense() {
   const advancedBy = document.getElementById('exAdvancedBy').value.trim();
+  const paidStatusEl = document.getElementById('exPaidStatus');
+  const paid = paidStatusEl ? paidStatusEl.value === 'true' : true;
   const e = {
     date: document.getElementById('exDate').value || new Date().toISOString().slice(0,10),
     vendor: document.getElementById('exVendor').value.trim(),
@@ -1466,16 +1599,26 @@ function addExpense() {
     note: document.getElementById('exNote').value.trim(),
     advancedBy,
     reimbursed: false,
+    paid,
   };
   if (!e.vendor || !e.amount) { toast('支払先と金額を入力してください'); return; }
   state.expenseLog.push(e);
   saveState();
   clearExpenseForm();
   renderAccounting();
-  toast(advancedBy ? `支出を追加しました（${advancedBy} さんの立替として記録）` : '支出を追加しました');
+  toast(paid ? (advancedBy ? `支出を追加しました（${advancedBy} さんの立替として記録）` : '支出を追加しました') : '未払の予定として追加しました');
 }
 function clearExpenseForm() {
   ['exDate','exVendor','exAmount','exNote','exAdvancedBy'].forEach(id => document.getElementById(id).value = '');
+  const p = document.getElementById('exPaidStatus'); if (p) p.value = 'true';
+}
+function toggleExpensePaid(idx) {
+  const e = state.expenseLog[idx];
+  if (!e) return;
+  e.paid = e.paid === false ? true : false;
+  saveState();
+  renderAccounting();
+  toast(e.paid ? '支払済にしました' : '未払に戻しました');
 }
 function toggleExpenseReimbursed(idx) {
   const e = state.expenseLog[idx];
@@ -1506,6 +1649,9 @@ function openExpenseEdit(idx) {
       <label>金額<input type="number" id="exe_amount" value="${e.amount||0}"></label>
       <label>支払方法<select id="exe_method">${methods}</select></label>
       <label>立替者（該当時のみ）<input type="text" id="exe_advancedBy" value="${escapeHtml(e.advancedBy||'')}"></label>
+      <label>支払状況
+        <select id="exe_paid"><option value="true">支払済</option><option value="false">未払（予定）</option></select>
+      </label>
       <label class="full">メモ<input type="text" id="exe_note" value="${escapeHtml(e.note||'')}"></label>
     </div>
     ${e.advancedBy ? `<div class="form-row"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="exe_reimbursed" ${e.reimbursed?'checked':''}> 精算済（返済完了）にする</label></div>` : ''}
@@ -1515,6 +1661,8 @@ function openExpenseEdit(idx) {
       <button class="btn secondary" onclick="closeModal()">キャンセル</button>
     </div>
   `);
+  const paidElInit = document.getElementById('exe_paid');
+  if (paidElInit) paidElInit.value = (e.paid === false) ? 'false' : 'true';
 }
 function saveExpenseEdit(idx) {
   const e = state.expenseLog[idx];
@@ -1529,6 +1677,8 @@ function saveExpenseEdit(idx) {
   e.method = document.getElementById('exe_method').value;
   e.advancedBy = document.getElementById('exe_advancedBy').value.trim();
   e.note = document.getElementById('exe_note').value.trim();
+  const paidEl = document.getElementById('exe_paid');
+  if (paidEl) e.paid = paidEl.value === 'true';
   const rb = document.getElementById('exe_reimbursed');
   if (rb) e.reimbursed = rb.checked;
   if (!e.advancedBy) e.reimbursed = false;
