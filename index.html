@@ -2538,6 +2538,149 @@ function deleteSponsor(idx) {
   renderSponsors();
 }
 
+// ---- 協賛CSV取り込み ----
+const SPONSOR_CSV_HEADERS = ['企業名','担当者名','郵便番号','住所','電話番号','メール','プラン','金額','制作物','備考','入金状況','ステータス','領収書','請求書'];
+
+function downloadSponsorCsvTemplate() {
+  const sample = [
+    SPONSOR_CSV_HEADERS.join(','),
+    '"サンプル株式会社","山田 太郎","000-0000","北海道札幌市中央区1-1-1","011-000-0000","sample@example.com","A","50000","HP広告・バナー","備考メモ","入金","制作完了","",""'
+  ].join('\n');
+  const blob = new Blob(['﻿' + sample], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '協賛CSVテンプレート.csv';
+  a.click();
+  toast('CSVテンプレートをダウンロードしました');
+}
+
+// CSVパーサ（RFC4180準拠：ダブルクォート・改行対応）
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], nxt = text[i+1];
+    if (inQuotes) {
+      if (c === '"' && nxt === '"') { field += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { field += c; }
+    } else {
+      if (c === '"') { inQuotes = true; }
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else { field += c; }
+    }
+  }
+  if (field !== '' || row.length > 0) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(x => String(x).trim() !== ''));
+}
+
+function importSponsorCsv(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      let text = e.target.result;
+      // BOM除去
+      if (text.charCodeAt(0) === 0xFEFF) text = text.substring(1);
+      const rows = parseCsv(text);
+      if (rows.length < 2) { toast('データ行がありません'); return; }
+      const headers = rows[0].map(h => String(h).trim());
+      const dataRows = rows.slice(1);
+      // ヘッダーマッピング
+      const idx = {};
+      SPONSOR_CSV_HEADERS.forEach(h => { idx[h] = headers.findIndex(x => x === h); });
+      // 必須：企業名
+      if (idx['企業名'] === -1) { toast('CSVに「企業名」列が見つかりません'); return; }
+      const parsed = dataRows.map(r => {
+        const get = (h) => idx[h] >= 0 ? String(r[idx[h]]||'').trim() : '';
+        const nyukin = get('入金状況');
+        const productionStatus = get('ステータス');
+        let status = '未連絡';
+        if (nyukin.includes('入金') && !nyukin.includes('未')) status = '入金済';
+        else if (nyukin.includes('未入金')) status = '確定';
+        else if (nyukin) status = '交渉中';
+        const amountStr = get('金額').replace(/[,¥\s円]/g, '');
+        return {
+          company: get('企業名'),
+          contactName: get('担当者名'),
+          zip: get('郵便番号'),
+          address: get('住所'),
+          phone: get('電話番号'),
+          email: get('メール'),
+          plan: get('プラン'),
+          category: get('プラン'),
+          amount: Number(amountStr) || 0,
+          productionItems: get('制作物'),
+          productionStatus: productionStatus,
+          note: get('備考'),
+          status: status,
+          receiptStatus: get('領収書'),
+          invoiceStatus: get('請求書'),
+          paymentDate: ''
+        };
+      }).filter(s => s.company);
+      if (parsed.length === 0) { toast('取り込めるデータがありませんでした'); return; }
+      // プレビュー→確認モーダル
+      const existing = state.sponsors.map(s => (s.company||'').trim());
+      const newCount = parsed.filter(s => !existing.includes(s.company)).length;
+      const updateCount = parsed.length - newCount;
+      let html = '<button class="modal-close" onclick="closeModal()">×</button>';
+      html += '<h3>📥 協賛データの取り込み確認</h3>';
+      html += '<p style="font-size:13px;margin-bottom:12px">' + parsed.length + '件のデータを検出しました（新規：' + newCount + '件 / 更新：' + updateCount + '件）</p>';
+      html += '<div style="max-height:350px;overflow-y:auto;border:1px solid #eee;border-radius:6px;margin-bottom:14px">';
+      html += '<table class="data-table" style="font-size:12px"><thead><tr><th>種別</th><th>企業名</th><th>担当者</th><th>プラン</th><th class="num">金額</th><th>状態</th></tr></thead><tbody>';
+      html += parsed.map(s => {
+        const isUpdate = existing.includes(s.company);
+        const badge = isUpdate ? '<span style="background:#FEF9E7;color:#B7950B;padding:2px 6px;border-radius:4px;font-size:11px">更新</span>' : '<span style="background:#D5F5E3;color:#1E8449;padding:2px 6px;border-radius:4px;font-size:11px">新規</span>';
+        return '<tr><td>' + badge + '</td><td>' + escapeHtml(s.company) + '</td><td>' + escapeHtml(s.contactName) + '</td><td>' + escapeHtml(s.plan) + '</td><td class="num">' + fmt(s.amount) + '</td><td>' + escapeHtml(s.status) + '</td></tr>';
+      }).join('');
+      html += '</tbody></table></div>';
+      html += '<div class="form-actions">';
+      html += '<button class="btn" onclick="confirmSponsorImport()">' + parsed.length + '件を取り込む</button>';
+      html += '<button class="btn secondary" onclick="closeModal()">キャンセル</button>';
+      html += '</div>';
+      window._pendingSponsorImport = parsed;
+      showModal(html);
+    } catch (err) {
+      console.error(err);
+      toast('CSVの読み込みに失敗しました：' + err.message);
+    } finally {
+      event.target.value = ''; // 同じファイルを再度選べるように
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function confirmSponsorImport() {
+  const parsed = window._pendingSponsorImport || [];
+  if (parsed.length === 0) { closeModal(); return; }
+  let added = 0, updated = 0;
+  parsed.forEach(newS => {
+    const existingIdx = state.sponsors.findIndex(s => (s.company||'').trim() === newS.company);
+    if (existingIdx >= 0) {
+      // 既存を更新（既存の値は残しつつ、CSVで空欄でない項目のみ上書き）
+      const merged = { ...state.sponsors[existingIdx] };
+      Object.keys(newS).forEach(k => {
+        if (newS[k] !== '' && newS[k] !== 0 && newS[k] != null) merged[k] = newS[k];
+        else if (k === 'amount' && newS[k] === 0 && !state.sponsors[existingIdx].amount) merged[k] = 0;
+      });
+      state.sponsors[existingIdx] = merged;
+      updated++;
+    } else {
+      state.sponsors.push(newS);
+      added++;
+    }
+  });
+  saveState();
+  closeModal();
+  renderSponsors();
+  window._pendingSponsorImport = null;
+  toast('取り込み完了：新規 ' + added + '件 / 更新 ' + updated + '件');
+}
+
 // ============================================================
 //                          STAFF
 // ============================================================
