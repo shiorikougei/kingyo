@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -515,6 +514,32 @@ details[open] summary { margin-bottom: 10px; }
   </div>
 
   <div class="panel">
+    <h3>収入を1件追加</h3>
+    <div class="form-row">
+      <label>受領日<input type="date" id="inDate"></label>
+      <label>入金元<input type="text" id="inSource" placeholder="例：出店料 A-01 / 協賛金 ○○社"></label>
+      <label>科目<select id="inCategory"></select></label>
+      <label>金額<input type="number" id="inAmount" placeholder="0"></label>
+      <label>受領方法
+        <select id="inMethod">
+          <option>現金</option><option>銀行振込</option><option>その他</option>
+        </select>
+      </label>
+      <label class="full">メモ<input type="text" id="inNote" placeholder="領収書番号など"></label>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="addIncome()">+ 追加</button>
+      <button class="btn secondary" onclick="clearIncomeForm()">クリア</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>記録した収入（アプリ内）</h3>
+    <div id="incomeSummary" style="font-size:13px;margin-bottom:10px"></div>
+    <table class="data-table" id="incomeLogTable"></table>
+  </div>
+
+  <div class="panel">
     <h3>支出：予算 vs 実績</h3>
     <table class="data-table" id="expenseTable"></table>
   </div>
@@ -963,6 +988,7 @@ function defaultState() {
       { date: '2026-03-03', vendor: 'ココス', category: '会議費', amount: 15000, method: '現金', note: '' },
       { date: '2026-03-03', vendor: '株式会社ココスジャパン', category: '会議費', amount: 11429, method: 'クレジットカード', note: '' },
     ],
+    incomeLog: [],
   };
 }
 
@@ -1144,9 +1170,16 @@ function renderDashboard() {
 function sumExpense(category) {
   return state.expenseLog.filter(e => e.category === category).reduce((s, e) => s + (Number(e.amount) || 0), 0);
 }
+function sumIncome(category) {
+  if (!Array.isArray(state.incomeLog)) return 0;
+  return state.incomeLog.filter(e => e.category === category).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+}
 
 function renderAccounting() {
-  // Populate category select
+  // Backward compat
+  if (!Array.isArray(state.incomeLog)) state.incomeLog = [];
+
+  // Populate category select (expense)
   const sel = document.getElementById('exCategory');
   if (sel.options.length === 0) {
     state.settings.expense.forEach(e => {
@@ -1155,15 +1188,38 @@ function renderAccounting() {
       sel.appendChild(o);
     });
   }
+  // Populate category select (income)
+  const inSel = document.getElementById('inCategory');
+  if (inSel && inSel.options.length === 0) {
+    state.settings.income.forEach(i => {
+      const o = document.createElement('option');
+      o.value = i.name; o.textContent = i.name;
+      inSel.appendChild(o);
+    });
+  }
 
   // Income table
   const incomeRows = state.settings.income.map(i => {
-    const actual = 0; // No income log yet — could be extended
+    const actual = sumIncome(i.name);
     const diff = actual - i.budget;
     const pct = i.budget > 0 ? (actual / i.budget * 100).toFixed(1) : '0.0';
-    return `<tr><td>${escapeHtml(i.name)}</td><td class="num">${fmt(i.budget)}</td><td class="num">${fmt(actual)}</td><td class="num" style="color:${diff<0?'#C0392B':'#1E8449'}">${fmt(diff)}</td><td class="num">${pct}%</td></tr>`;
+    return `<tr><td>${escapeHtml(i.name)}</td><td class="num">${fmt(i.budget)}</td><td class="num">${fmt(actual)}</td><td class="num" style="color:${diff<0?'#C0392B':'#1E8449'}">${fmt(diff)}</td><td class="num">${pct}%<div class="budget-bar"><div class="fill" style="width:${Math.min(100,pct)}%;background:#F1C40F"></div></div></td></tr>`;
   }).join('');
-  document.getElementById('incomeTable').innerHTML = `<thead><tr><th>科目</th><th class="num">予算</th><th class="num">実績</th><th class="num">差額</th><th class="num">進捗</th></tr></thead><tbody>${incomeRows}</tbody>`;
+  document.getElementById('incomeTable').innerHTML = `<thead><tr><th>科目</th><th class="num">予算</th><th class="num">実績</th><th class="num">差額</th><th class="num">達成率</th></tr></thead><tbody>${incomeRows}</tbody>`;
+
+  // Income log table
+  const inLogRows = state.incomeLog.length === 0
+    ? `<tr><td colspan="6" class="empty">記録された収入はまだありません</td></tr>`
+    : [...state.incomeLog].reverse().map((e, idx) => {
+      const realIdx = state.incomeLog.length - 1 - idx;
+      return `<tr><td>${e.date||''}</td><td>${escapeHtml(e.source||'')}</td><td>${escapeHtml(e.category||'')}</td><td class="num">${fmt(e.amount||0)}</td><td>${escapeHtml(e.method||'')}</td><td>${escapeHtml(e.note||'')} <button class="btn small ghost" onclick="openIncomeEdit(${realIdx})">編集</button> <button class="btn small danger" onclick="deleteIncome(${realIdx})">削除</button></td></tr>`;
+    }).join('');
+  document.getElementById('incomeLogTable').innerHTML = `<thead><tr><th>受領日</th><th>入金元</th><th>科目</th><th class="num">金額</th><th>方法</th><th>メモ</th></tr></thead><tbody>${inLogRows}</tbody>`;
+  const inSummary = document.getElementById('incomeSummary');
+  if (inSummary) {
+    if (state.incomeLog.length === 0) inSummary.innerHTML = '<span style="color:#999">記録件数：0件</span>';
+    else inSummary.innerHTML = `<span style="background:#FEF9E7;color:#B7950B;padding:6px 12px;border-radius:6px;font-weight:600">💰 記録された収入 合計 ${fmt(state.incomeLog.reduce((s,e)=>s+(Number(e.amount)||0),0))}（${state.incomeLog.length}件）</span>`;
+  }
 
   // Expense table
   const expenseRows = state.settings.expense.map(e => {
@@ -1177,7 +1233,7 @@ function renderAccounting() {
   // Cards
   const incomeBudget = state.settings.income.reduce((s, i) => s + i.budget, 0);
   const expenseBudget = state.settings.expense.reduce((s, e) => s + e.budget, 0);
-  const incomeActual = 0;
+  const incomeActual = state.incomeLog.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const expenseActual = state.expenseLog.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   document.getElementById('acIncomeBudget').textContent = fmt(incomeBudget);
   document.getElementById('acIncomeActual').textContent = fmt(incomeActual);
@@ -1215,6 +1271,73 @@ function renderAccounting() {
       return `<tr><td>${e.date}</td><td>${escapeHtml(e.vendor)}</td><td>${escapeHtml(e.category)}</td><td class="num">${fmt(e.amount)}</td><td>${escapeHtml(e.method)}</td><td>${advCell}</td><td>${escapeHtml(e.note||'')} <button class="btn small ghost" onclick="openExpenseEdit(${realIdx})">編集</button> <button class="btn small danger" onclick="deleteExpense(${realIdx})">削除</button></td></tr>`;
     }).join('');
   document.getElementById('expenseLogTable').innerHTML = `<thead><tr><th>日付</th><th>支払先</th><th>費目</th><th class="num">金額</th><th>方法</th><th>立替</th><th>メモ</th></tr></thead><tbody>${logRows}</tbody>`;
+}
+
+function addIncome() {
+  if (!Array.isArray(state.incomeLog)) state.incomeLog = [];
+  const e = {
+    date: document.getElementById('inDate').value || new Date().toISOString().slice(0,10),
+    source: document.getElementById('inSource').value.trim(),
+    category: document.getElementById('inCategory').value,
+    amount: Number(document.getElementById('inAmount').value) || 0,
+    method: document.getElementById('inMethod').value,
+    note: document.getElementById('inNote').value.trim(),
+  };
+  if (!e.source || !e.amount) { toast('入金元と金額を入力してください'); return; }
+  state.incomeLog.push(e);
+  saveState();
+  clearIncomeForm();
+  renderAccounting();
+  toast('収入を追加しました');
+}
+function clearIncomeForm() {
+  ['inDate','inSource','inAmount','inNote'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+}
+function deleteIncome(idx) {
+  if (!confirm('この収入を削除しますか？')) return;
+  state.incomeLog.splice(idx, 1);
+  saveState();
+  renderAccounting();
+}
+function openIncomeEdit(idx) {
+  const e = state.incomeLog[idx];
+  if (!e) return;
+  const categories = state.settings.income.map(x => `<option ${x.name===e.category?'selected':''}>${escapeHtml(x.name)}</option>`).join('');
+  const methods = ['現金','銀行振込','その他'].map(m => `<option ${m===e.method?'selected':''}>${m}</option>`).join('');
+  showModal(`
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>収入を編集</h3>
+    <div class="form-row">
+      <label>受領日<input type="date" id="ine_date" value="${e.date||''}"></label>
+      <label>入金元<input type="text" id="ine_source" value="${escapeHtml(e.source||'')}"></label>
+      <label>科目<select id="ine_category">${categories}</select></label>
+      <label>金額<input type="number" id="ine_amount" value="${e.amount||0}"></label>
+      <label>受領方法<select id="ine_method">${methods}</select></label>
+      <label class="full">メモ<input type="text" id="ine_note" value="${escapeHtml(e.note||'')}"></label>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="saveIncomeEdit(${idx})">保存</button>
+      <button class="btn danger" onclick="closeModal();deleteIncome(${idx})">削除</button>
+      <button class="btn secondary" onclick="closeModal()">キャンセル</button>
+    </div>
+  `);
+}
+function saveIncomeEdit(idx) {
+  const e = state.incomeLog[idx];
+  if (!e) return;
+  const source = document.getElementById('ine_source').value.trim();
+  const amount = Number(document.getElementById('ine_amount').value) || 0;
+  if (!source || !amount) { toast('入金元と金額を入力してください'); return; }
+  e.date = document.getElementById('ine_date').value || e.date;
+  e.source = source;
+  e.category = document.getElementById('ine_category').value;
+  e.amount = amount;
+  e.method = document.getElementById('ine_method').value;
+  e.note = document.getElementById('ine_note').value.trim();
+  saveState();
+  closeModal();
+  renderAccounting();
+  toast('編集を保存しました');
 }
 
 function addExpense() {
