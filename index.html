@@ -698,6 +698,7 @@ details[open] summary { margin-bottom: 10px; }
     <button class="btn" onclick="openStaffEdit()">+ スタッフを追加</button>
   </div>
 
+  <div id="staffPaySummary" style="font-size:13px;margin-bottom:10px"></div>
   <div class="panel" style="padding: 0;">
     <table class="data-table" id="staffTable"></table>
   </div>
@@ -1218,11 +1219,22 @@ function sumBoothCommissionCollected() {
 function sumSponsorPaid() {
   return (state.sponsors || []).filter(s => s && s.status === '入金済').reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
 }
+function sumStaffPayPaid() {
+  return (state.staff || []).filter(s => s && s.paid).reduce((sum, s) => sum + (Number(s.payAmount) || 0), 0);
+}
+function sumStaffPayAll() {
+  return (state.staff || []).reduce((sum, s) => sum + (Number(s.payAmount) || 0), 0);
+}
 function getIncomeActual(category) {
   let base = sumIncome(category);
   if (category === '出店料収入') base += sumBoothFeeCollected();
   if (category === '売上歩合収入') base += sumBoothCommissionCollected();
   if (category === '協賛金収入') base += sumSponsorPaid();
+  return base;
+}
+function getExpenseActual(category) {
+  let base = sumExpense(category);
+  if (category === '人件費') base += sumStaffPayPaid();
   return base;
 }
 
@@ -1278,10 +1290,16 @@ function renderAccounting() {
 
   // Expense table
   const expenseRows = state.settings.expense.map(e => {
-    const actual = sumExpense(e.name);
+    const actual = getExpenseActual(e.name);
     const diff = e.budget - actual;
     const pct = e.budget > 0 ? (actual / e.budget * 100).toFixed(1) : '0.0';
-    return `<tr><td>${escapeHtml(e.name)}</td><td class="num">${fmt(e.budget)}</td><td class="num">${fmt(actual)}</td><td class="num" style="color:${diff<0?'#C0392B':'#1E8449'}">${fmt(diff)}</td><td class="num">${pct}%<div class="budget-bar ${actual>e.budget?'over':''}"><div class="fill" style="width:${Math.min(100,pct)}%"></div></div></td></tr>`;
+    let autoNote = '';
+    if (e.name === '人件費') {
+      const staffPaid = sumStaffPayPaid();
+      const staffUnpaid = sumStaffPayAll() - staffPaid;
+      autoNote = '<div style="font-size:11px;color:#3498DB;margin-top:2px">🔗 スタッフ支払連動：¥' + staffPaid.toLocaleString() + (staffUnpaid>0?' <span style="color:#B7950B">（未払¥'+staffUnpaid.toLocaleString()+'）</span>':'') + '</div>';
+    }
+    return `<tr><td>${escapeHtml(e.name)}${autoNote}</td><td class="num">${fmt(e.budget)}</td><td class="num">${fmt(actual)}</td><td class="num" style="color:${diff<0?'#C0392B':'#1E8449'}">${fmt(diff)}</td><td class="num">${pct}%<div class="budget-bar ${actual>e.budget?'over':''}"><div class="fill" style="width:${Math.min(100,pct)}%"></div></div></td></tr>`;
   }).join('');
   document.getElementById('expenseTable').innerHTML = `<thead><tr><th>科目</th><th class="num">予算</th><th class="num">実績</th><th class="num">残額</th><th class="num">消化率</th></tr></thead><tbody>${expenseRows}</tbody>`;
 
@@ -1289,7 +1307,7 @@ function renderAccounting() {
   const incomeBudget = state.settings.income.reduce((s, i) => s + i.budget, 0);
   const expenseBudget = state.settings.expense.reduce((s, e) => s + e.budget, 0);
   const incomeActual = state.settings.income.reduce((s, i) => s + getIncomeActual(i.name), 0);
-  const expenseActual = state.expenseLog.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const expenseActual = state.settings.expense.reduce((s, e) => s + getExpenseActual(e.name), 0);
   document.getElementById('acIncomeBudget').textContent = fmt(incomeBudget);
   document.getElementById('acIncomeActual').textContent = fmt(incomeActual);
   document.getElementById('acExpenseBudget').textContent = fmt(expenseBudget);
@@ -2763,20 +2781,45 @@ function renderStaff() {
   if (search) list = list.filter(s => s.name.toLowerCase().includes(search));
 
   const rows = list.length === 0
-    ? `<tr><td colspan="5" class="empty">スタッフがまだ登録されていません</td></tr>`
-    : list.map(s => `<tr>
-      <td><strong>${escapeHtml(s.name)}</strong></td>
-      <td>${(s.roles||[]).map(r => `<span class="status-badge" style="background:#EBF5FB;color:#2980B9;margin-right:3px">${r}</span>`).join('')}</td>
-      <td>${escapeHtml(s.contact||'-')}</td>
-      <td>${escapeHtml(s.shift||'-')}</td>
-      <td><button class="btn small ghost" onclick="openStaffEdit(${s._idx})">編集</button></td>
-    </tr>`).join('');
-  document.getElementById('staffTable').innerHTML = `<thead><tr><th>名前</th><th>役割</th><th>連絡先</th><th>シフト</th><th></th></tr></thead><tbody>${rows}</tbody>`;
+    ? `<tr><td colspan="7" class="empty">スタッフがまだ登録されていません</td></tr>`
+    : list.map(s => {
+      const pay = Number(s.payAmount) || 0;
+      let payCell = pay > 0 ? '¥' + pay.toLocaleString() : '<span style="color:#BDC3C7">—</span>';
+      let statusCell = '<span style="color:#BDC3C7;font-size:12px">—</span>';
+      if (pay > 0) {
+        statusCell = s.paid
+          ? '<span class="status-badge status-完了">✓ 支払済</span>'
+          : '<span class="status-badge" style="background:#FEF5E7;color:#B7950B">未払</span>';
+      }
+      return `<tr>
+        <td><strong>${escapeHtml(s.name)}</strong></td>
+        <td>${(s.roles||[]).map(r => `<span class="status-badge" style="background:#EBF5FB;color:#2980B9;margin-right:3px">${r}</span>`).join('')}</td>
+        <td>${escapeHtml(s.contact||'-')}</td>
+        <td>${escapeHtml(s.shift||'-')}</td>
+        <td class="num">${payCell}</td>
+        <td>${statusCell}</td>
+        <td><button class="btn small ghost" onclick="openStaffEdit(${s._idx})">編集</button></td>
+      </tr>`;
+    }).join('');
+  document.getElementById('staffTable').innerHTML = `<thead><tr><th>名前</th><th>役割</th><th>連絡先</th><th>シフト</th><th class="num">支払金額</th><th>支払状況</th><th></th></tr></thead><tbody>${rows}</tbody>`;
+
+  // サマリー
+  const summary = document.getElementById('staffPaySummary');
+  if (summary) {
+    const total = state.staff.reduce((s,x)=>s+(Number(x.payAmount)||0),0);
+    const paid = state.staff.filter(x=>x.paid).reduce((s,x)=>s+(Number(x.payAmount)||0),0);
+    const unpaid = total - paid;
+    if (total > 0) {
+      summary.innerHTML = `<span style="background:#FEF9E7;color:#B7950B;padding:6px 12px;border-radius:6px;font-weight:600;margin-right:8px">💰 支払総額 ${fmt(total)}</span> <span style="color:#1E8449;font-size:12px">✓ 支払済 ${fmt(paid)}</span> <span style="color:#C0392B;font-size:12px;margin-left:10px">💸 未払 ${fmt(unpaid)}</span>`;
+    } else {
+      summary.innerHTML = '';
+    }
+  }
 }
 
 function openStaffEdit(idx) {
   const isNew = idx === undefined;
-  const s = isNew ? { name:'', roles:[], contact:'', shift:'', note:'' } : { ...state.staff[idx] };
+  const s = isNew ? { name:'', roles:[], contact:'', shift:'', note:'', payAmount:0, paid:false, paidDate:'' } : { ...state.staff[idx] };
   showModal(`
     <button class="modal-close" onclick="closeModal()">×</button>
     <h3>${isNew?'スタッフを追加':'スタッフを編集'}</h3>
@@ -2794,6 +2837,16 @@ function openStaffEdit(idx) {
     <div class="form-row">
       <label class="full">シフト・担当範囲<input id="st_shift" value="${escapeHtml(s.shift||'')}" placeholder="例：1日目10-15時、2日目終日"></label>
     </div>
+    <div style="background:#FEF9E7;border:1px solid #F5E6A8;padding:12px 14px;border-radius:8px;margin:10px 0">
+      <div style="font-size:13px;font-weight:700;color:#B7950B;margin-bottom:8px">💰 スタッフへの支払い</div>
+      <div class="form-row">
+        <label>支払金額（円）<input type="number" id="st_payAmount" value="${s.payAmount||0}" placeholder="例：10000"></label>
+        <label>支払状況
+          <select id="st_paid"><option value="false">未払</option><option value="true">支払済</option></select>
+        </label>
+        <label>支払日<input type="date" id="st_paidDate" value="${s.paidDate||''}"></label>
+      </div>
+    </div>
     <div class="form-row">
       <label class="full">メモ<textarea id="st_note">${escapeHtml(s.note||'')}</textarea></label>
     </div>
@@ -2803,6 +2856,8 @@ function openStaffEdit(idx) {
       <button class="btn secondary" onclick="closeModal()">キャンセル</button>
     </div>
   `);
+  const paidEl = document.getElementById('st_paid');
+  if (paidEl) paidEl.value = s.paid ? 'true' : 'false';
 }
 function saveStaff(idx) {
   const roles = Array.from(document.querySelectorAll('#modalContent input[type=checkbox]:checked')).map(c => c.value);
@@ -2812,13 +2867,17 @@ function saveStaff(idx) {
     roles,
     shift: document.getElementById('st_shift').value.trim(),
     note: document.getElementById('st_note').value,
+    payAmount: Number(document.getElementById('st_payAmount').value) || 0,
+    paid: document.getElementById('st_paid').value === 'true',
+    paidDate: document.getElementById('st_paidDate').value,
   };
   if (!s.name) { toast('名前を入力してください'); return; }
   if (idx === null) state.staff.push(s);
-  else state.staff[idx] = s;
+  else state.staff[idx] = { ...state.staff[idx], ...s };
   saveState();
   closeModal();
   renderStaff();
+  if (typeof renderAccounting === 'function' && document.getElementById('tab-accounting')?.classList.contains('active')) renderAccounting();
   toast('保存しました');
 }
 function deleteStaff(idx) {
