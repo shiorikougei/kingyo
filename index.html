@@ -663,6 +663,9 @@ details[open] summary { margin-bottom: 10px; }
     </select>
     <input class="search" id="spoSearch" placeholder="企業名で検索..." oninput="renderSponsors()">
     <div class="spacer"></div>
+    <button class="btn small ghost" onclick="downloadSponsorCsvTemplate()">📄 CSVテンプレDL</button>
+    <button class="btn small gold" onclick="document.getElementById('sponsorCsvFile').click()">📥 CSVから取り込む</button>
+    <input type="file" id="sponsorCsvFile" accept=".csv,text/csv" style="display:none" onchange="importSponsorCsv(event)">
     <button class="btn" onclick="openSponsorEdit()">+ 協賛先を追加</button>
   </div>
 
@@ -1174,6 +1177,45 @@ function sumIncome(category) {
   if (!Array.isArray(state.incomeLog)) return 0;
   return state.incomeLog.filter(e => e.category === category).reduce((s, e) => s + (Number(e.amount) || 0), 0);
 }
+// 出店データから、実際に支払済（回収済）の出店料・売上歩合を自動集計
+function sumBoothFeeCollected() {
+  return (state.exhibitors || []).reduce((total, b) => {
+    if (!b || !b.name) return total;
+    const days = Number(b.days) || 0;
+    const wd = b.whichDay || '';
+    const fee = Number(b.fee) || 0;
+    if (fee <= 0) return total;
+    if (days === 2) {
+      const d1 = Math.floor(fee/2);
+      const d2 = fee - d1;
+      return total + (b.day1FeePaid ? d1 : 0) + (b.day2FeePaid ? d2 : 0);
+    }
+    if (days === 1) {
+      if (wd === '1' && b.day1FeePaid) return total + fee;
+      if (wd === '2' && b.day2FeePaid) return total + fee;
+      // whichDay 未定でもday1FeePaidで判断
+      if (!wd && b.day1FeePaid) return total + fee;
+    }
+    return total;
+  }, 0);
+}
+function sumBoothCommissionCollected() {
+  return (state.exhibitors || []).reduce((total, b) => {
+    if (!b || !b.name) return total;
+    const rate = (Number(b.commissionRate) || 10) / 100;
+    const d1Sales = Number(b.salesDay1) || 0;
+    const d2Sales = Number(b.salesDay2) || 0;
+    const d1Comm = Math.floor(d1Sales * rate);
+    const d2Comm = Math.floor(d2Sales * rate);
+    return total + (b.day1CommissionPaid ? d1Comm : 0) + (b.day2CommissionPaid ? d2Comm : 0);
+  }, 0);
+}
+function getIncomeActual(category) {
+  let base = sumIncome(category);
+  if (category === '出店料収入') base += sumBoothFeeCollected();
+  if (category === '売上歩合収入') base += sumBoothCommissionCollected();
+  return base;
+}
 
 function renderAccounting() {
   // Backward compat
@@ -1200,10 +1242,13 @@ function renderAccounting() {
 
   // Income table
   const incomeRows = state.settings.income.map(i => {
-    const actual = sumIncome(i.name);
+    const actual = getIncomeActual(i.name);
     const diff = actual - i.budget;
     const pct = i.budget > 0 ? (actual / i.budget * 100).toFixed(1) : '0.0';
-    return `<tr><td>${escapeHtml(i.name)}</td><td class="num">${fmt(i.budget)}</td><td class="num">${fmt(actual)}</td><td class="num" style="color:${diff<0?'#C0392B':'#1E8449'}">${fmt(diff)}</td><td class="num">${pct}%<div class="budget-bar"><div class="fill" style="width:${Math.min(100,pct)}%;background:#F1C40F"></div></div></td></tr>`;
+    let autoNote = '';
+    if (i.name === '出店料収入') autoNote = '<div style="font-size:11px;color:#3498DB;margin-top:2px">🔗 出店データ連動：¥' + sumBoothFeeCollected().toLocaleString() + '</div>';
+    if (i.name === '売上歩合収入') autoNote = '<div style="font-size:11px;color:#3498DB;margin-top:2px">🔗 出店データ連動：¥' + sumBoothCommissionCollected().toLocaleString() + '</div>';
+    return `<tr><td>${escapeHtml(i.name)}${autoNote}</td><td class="num">${fmt(i.budget)}</td><td class="num">${fmt(actual)}</td><td class="num" style="color:${diff<0?'#C0392B':'#1E8449'}">${fmt(diff)}</td><td class="num">${pct}%<div class="budget-bar"><div class="fill" style="width:${Math.min(100,pct)}%;background:#F1C40F"></div></div></td></tr>`;
   }).join('');
   document.getElementById('incomeTable').innerHTML = `<thead><tr><th>科目</th><th class="num">予算</th><th class="num">実績</th><th class="num">差額</th><th class="num">達成率</th></tr></thead><tbody>${incomeRows}</tbody>`;
 
@@ -1233,7 +1278,7 @@ function renderAccounting() {
   // Cards
   const incomeBudget = state.settings.income.reduce((s, i) => s + i.budget, 0);
   const expenseBudget = state.settings.expense.reduce((s, e) => s + e.budget, 0);
-  const incomeActual = state.incomeLog.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const incomeActual = state.settings.income.reduce((s, i) => s + getIncomeActual(i.name), 0);
   const expenseActual = state.expenseLog.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   document.getElementById('acIncomeBudget').textContent = fmt(incomeBudget);
   document.getElementById('acIncomeActual').textContent = fmt(incomeActual);
@@ -2397,16 +2442,19 @@ function renderSponsors() {
   if (search) list = list.filter(s => (s.company + (s.note||'')).toLowerCase().includes(search));
 
   const rows = list.length === 0
-    ? `<tr><td colspan="6" class="empty">協賛先がまだ登録されていません</td></tr>`
+    ? `<tr><td colspan="9" class="empty">協賛先がまだ登録されていません</td></tr>`
     : list.map(s => `<tr>
-      <td><strong>${escapeHtml(s.company)}</strong></td>
-      <td>${escapeHtml(s.category||'-')}</td>
+      <td><strong>${escapeHtml(s.company)}</strong>${s.contactName?'<div style="font-size:11px;color:#666">'+escapeHtml(s.contactName)+'</div>':''}</td>
+      <td>${escapeHtml(s.plan||s.category||'-')}</td>
       <td class="num">${fmt(s.amount)}</td>
       <td><span class="status-badge status-${s.status}">${s.status}</span></td>
+      <td style="font-size:12px">${escapeHtml(s.productionItems||'')}${s.productionStatus?'<div style="color:#666;font-size:11px">'+escapeHtml(s.productionStatus)+'</div>':''}</td>
+      <td style="font-size:12px">${escapeHtml(s.phone||'')}${s.email?'<div style="font-size:11px;color:#666">'+escapeHtml(s.email)+'</div>':''}</td>
+      <td style="font-size:12px">${escapeHtml(s.address||'')}</td>
       <td>${s.paymentDate || '-'}</td>
       <td><button class="btn small ghost" onclick="openSponsorEdit(${s._idx})">編集</button></td>
     </tr>`).join('');
-  document.getElementById('sponsorsTable').innerHTML = `<thead><tr><th>企業名</th><th>カテゴリ</th><th class="num">金額</th><th>状態</th><th>入金日</th><th></th></tr></thead><tbody>${rows}</tbody>`;
+  document.getElementById('sponsorsTable').innerHTML = `<thead><tr><th>企業名 / 担当者</th><th>プラン</th><th class="num">金額</th><th>状態</th><th>制作物</th><th>連絡先</th><th>住所</th><th>入金日</th><th></th></tr></thead><tbody>${rows}</tbody>`;
 
   const confirmedAmt = state.sponsors.filter(s => s.status === '確定' || s.status === '入金済').reduce((sum, s) => sum + (Number(s.amount)||0), 0);
   const paidAmt = state.sponsors.filter(s => s.status === '入金済').reduce((sum, s) => sum + (Number(s.amount)||0), 0);
@@ -2416,21 +2464,36 @@ function renderSponsors() {
 
 function openSponsorEdit(idx) {
   const isNew = idx === undefined;
-  const s = isNew ? { company:'', category:'', amount:0, status:'未連絡', paymentDate:'', note:'' } : { ...state.sponsors[idx] };
+  const s = isNew ? { company:'', category:'', plan:'', amount:0, status:'未連絡', paymentDate:'', note:'', contactName:'', zip:'', address:'', phone:'', email:'', productionItems:'', productionStatus:'', receiptStatus:'', invoiceStatus:'' } : { ...state.sponsors[idx] };
   showModal(`
     <button class="modal-close" onclick="closeModal()">×</button>
     <h3>${isNew?'協賛先を追加':'協賛先を編集'}</h3>
     <div class="form-row">
-      <label>企業名<input id="sp_company" value="${escapeHtml(s.company)}"></label>
-      <label>カテゴリ<input id="sp_cat" value="${escapeHtml(s.category||'')}" placeholder="ゴールド・シルバー等"></label>
+      <label>企業名<input id="sp_company" value="${escapeHtml(s.company||'')}"></label>
+      <label>担当者名<input id="sp_contactName" value="${escapeHtml(s.contactName||'')}"></label>
+      <label>プラン<input id="sp_plan" value="${escapeHtml(s.plan||s.category||'')}" placeholder="A / B / C / D 等"></label>
       <label>金額<input type="number" id="sp_amount" value="${s.amount||0}"></label>
     </div>
     <div class="form-row">
       <label>状態<select id="sp_status"><option>未連絡</option><option>交渉中</option><option>確定</option><option>入金済</option><option>辞退</option></select></label>
       <label>入金日<input type="date" id="sp_paymentDate" value="${s.paymentDate||''}"></label>
+      <label>領収書<input id="sp_receiptStatus" value="${escapeHtml(s.receiptStatus||'')}" placeholder="済 / 発行要 等"></label>
+      <label>請求書<input id="sp_invoiceStatus" value="${escapeHtml(s.invoiceStatus||'')}" placeholder="発行要す 等"></label>
     </div>
     <div class="form-row">
-      <label class="full">メモ<textarea id="sp_note">${escapeHtml(s.note||'')}</textarea></label>
+      <label>郵便番号<input id="sp_zip" value="${escapeHtml(s.zip||'')}"></label>
+      <label class="full">住所<input id="sp_address" value="${escapeHtml(s.address||'')}"></label>
+    </div>
+    <div class="form-row">
+      <label>電話番号<input id="sp_phone" value="${escapeHtml(s.phone||'')}"></label>
+      <label>メール<input id="sp_email" value="${escapeHtml(s.email||'')}"></label>
+    </div>
+    <div class="form-row">
+      <label>制作物<input id="sp_productionItems" value="${escapeHtml(s.productionItems||'')}" placeholder="HP広告・バナー・垂れ幕 等"></label>
+      <label>制作ステータス<input id="sp_productionStatus" value="${escapeHtml(s.productionStatus||'')}" placeholder="制作中 / 制作完了 等"></label>
+    </div>
+    <div class="form-row">
+      <label class="full">備考・メモ<textarea id="sp_note">${escapeHtml(s.note||'')}</textarea></label>
     </div>
     <div class="form-actions">
       <button class="btn" onclick="saveSponsor(${isNew?'null':idx})">保存</button>
@@ -2443,15 +2506,25 @@ function openSponsorEdit(idx) {
 function saveSponsor(idx) {
   const s = {
     company: document.getElementById('sp_company').value.trim(),
-    category: document.getElementById('sp_cat').value.trim(),
+    contactName: document.getElementById('sp_contactName').value.trim(),
+    plan: document.getElementById('sp_plan').value.trim(),
+    category: document.getElementById('sp_plan').value.trim(), // 後方互換
     amount: Number(document.getElementById('sp_amount').value) || 0,
     status: document.getElementById('sp_status').value,
     paymentDate: document.getElementById('sp_paymentDate').value,
+    receiptStatus: document.getElementById('sp_receiptStatus').value.trim(),
+    invoiceStatus: document.getElementById('sp_invoiceStatus').value.trim(),
+    zip: document.getElementById('sp_zip').value.trim(),
+    address: document.getElementById('sp_address').value.trim(),
+    phone: document.getElementById('sp_phone').value.trim(),
+    email: document.getElementById('sp_email').value.trim(),
+    productionItems: document.getElementById('sp_productionItems').value.trim(),
+    productionStatus: document.getElementById('sp_productionStatus').value.trim(),
     note: document.getElementById('sp_note').value,
   };
   if (!s.company) { toast('企業名を入力してください'); return; }
   if (idx === null) state.sponsors.push(s);
-  else state.sponsors[idx] = s;
+  else state.sponsors[idx] = { ...state.sponsors[idx], ...s };
   saveState();
   closeModal();
   renderSponsors();
