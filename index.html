@@ -879,6 +879,7 @@ async function bootApp() {
   }
 
   if (renumberBooths()) saveState();
+  if (migrateIncomeCategories()) saveState();
   renderDashboard();
   renderAccounting();
   renderPerformers();
@@ -930,6 +931,7 @@ const defaultBudget = {
     { name: '入場料収入', budget: 540000, note: '中学生以上200円' },
     { name: '本部販売収入', budget: 1000000, note: 'ポイ・ランタン・物販等' },
     { name: '協賛金収入', budget: 600000, note: '前年度：519,000円' },
+    { name: '雑入', budget: 0, note: 'その他収入' },
     { name: '繰越金', budget: 1631, note: '' },
   ],
   expense: [
@@ -1219,6 +1221,22 @@ function sumBoothCommissionCollected() {
     return total + (b.day1CommissionPaid ? d1Comm : 0) + (b.day2CommissionPaid ? d2Comm : 0);
   }, 0);
 }
+function migrateIncomeCategories() {
+  let changed = false;
+  if (!state.settings) return false;
+  if (!Array.isArray(state.settings.income)) return false;
+  const names = state.settings.income.map(i => i.name);
+  // 雑入を協賛金収入の後、繰越金の前に追加
+  if (!names.includes('雑入')) {
+    const carryIdx = state.settings.income.findIndex(i => i.name === '繰越金');
+    const entry = { name: '雑入', budget: 0, note: 'その他収入' };
+    if (carryIdx >= 0) state.settings.income.splice(carryIdx, 0, entry);
+    else state.settings.income.push(entry);
+    changed = true;
+  }
+  return changed;
+}
+
 function sumSponsorPaid() {
   return (state.sponsors || []).filter(s => s && s.status === '入金済').reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
 }
@@ -1255,6 +1273,22 @@ function toggleAccDetail(key) {
   }
 }
 
+function _incomeLogRealIdx(entry) {
+  return state.incomeLog.indexOf(entry);
+}
+function _expenseLogRealIdx(entry) {
+  return state.expenseLog.indexOf(entry);
+}
+function _exhibitorRealIdx(booth) {
+  return state.exhibitors.indexOf(booth);
+}
+function _sponsorRealIdx(sp) {
+  return state.sponsors.indexOf(sp);
+}
+function _staffRealIdx(st) {
+  return state.staff.indexOf(st);
+}
+
 function buildIncomeBreakdown(category) {
   let html = '';
   // 出店データ由来（出店料）
@@ -1266,17 +1300,22 @@ function buildIncomeBreakdown(category) {
       const wd = b.whichDay || '';
       const fee = Number(b.fee) || 0;
       if (fee <= 0) return;
+      const bIdx = _exhibitorRealIdx(b);
+      const editAction = 'openExhibitorEdit(' + bIdx + ')';
       if (days === 2) {
         const d1 = Math.floor(fee/2);
         const d2 = fee - d1;
-        if (b.day1FeePaid) rows.push({ src:'出店データ', label:b.id+' '+b.name+'（1日目分）', amount:d1 });
-        if (b.day2FeePaid) rows.push({ src:'出店データ', label:b.id+' '+b.name+'（2日目分）', amount:d2 });
+        if (b.day1FeePaid) rows.push({ src:'出店データ', label:b.id+' '+b.name+'（1日目分）', amount:d1, editAction });
+        if (b.day2FeePaid) rows.push({ src:'出店データ', label:b.id+' '+b.name+'（2日目分）', amount:d2, editAction });
       } else if (days === 1) {
         const paid = (wd==='2' ? b.day2FeePaid : b.day1FeePaid) || (!wd && b.day1FeePaid);
-        if (paid) rows.push({ src:'出店データ', label:b.id+' '+b.name, amount:fee });
+        if (paid) rows.push({ src:'出店データ', label:b.id+' '+b.name, amount:fee, editAction });
       }
     });
-    state.incomeLog.filter(e => e.category === category).forEach(e => rows.push({ src:'手動入力', label:e.source||'', amount:Number(e.amount)||0, date:e.date }));
+    state.incomeLog.filter(e => e.category === category).forEach(e => {
+      const idx = _incomeLogRealIdx(e);
+      rows.push({ src:'手動入力', label:e.source||'', amount:Number(e.amount)||0, date:e.date, editAction:'openIncomeEdit('+idx+')' });
+    });
     html += renderBreakdownTable(rows);
     return html;
   }
@@ -1288,10 +1327,15 @@ function buildIncomeBreakdown(category) {
       const rate = (Number(b.commissionRate)||10)/100;
       const d1 = Math.floor((Number(b.salesDay1)||0)*rate);
       const d2 = Math.floor((Number(b.salesDay2)||0)*rate);
-      if (b.day1CommissionPaid && d1 > 0) rows.push({ src:'出店データ', label:b.id+' '+b.name+'（1日目 '+(rate*100).toFixed(0)+'%）', amount:d1 });
-      if (b.day2CommissionPaid && d2 > 0) rows.push({ src:'出店データ', label:b.id+' '+b.name+'（2日目 '+(rate*100).toFixed(0)+'%）', amount:d2 });
+      const bIdx = _exhibitorRealIdx(b);
+      const editAction = 'openExhibitorEdit(' + bIdx + ')';
+      if (b.day1CommissionPaid && d1 > 0) rows.push({ src:'出店データ', label:b.id+' '+b.name+'（1日目 '+(rate*100).toFixed(0)+'%）', amount:d1, editAction });
+      if (b.day2CommissionPaid && d2 > 0) rows.push({ src:'出店データ', label:b.id+' '+b.name+'（2日目 '+(rate*100).toFixed(0)+'%）', amount:d2, editAction });
     });
-    state.incomeLog.filter(e => e.category === category).forEach(e => rows.push({ src:'手動入力', label:e.source||'', amount:Number(e.amount)||0, date:e.date }));
+    state.incomeLog.filter(e => e.category === category).forEach(e => {
+      const idx = _incomeLogRealIdx(e);
+      rows.push({ src:'手動入力', label:e.source||'', amount:Number(e.amount)||0, date:e.date, editAction:'openIncomeEdit('+idx+')' });
+    });
     html += renderBreakdownTable(rows);
     return html;
   }
@@ -1299,14 +1343,21 @@ function buildIncomeBreakdown(category) {
   if (category === '協賛金収入') {
     const rows = [];
     (state.sponsors || []).filter(s => s.status === '入金済').forEach(s => {
-      rows.push({ src:'協賛データ', label:s.company+(s.plan?'（'+s.plan+'）':''), amount:Number(s.amount)||0, date:s.paymentDate||'' });
+      const sIdx = _sponsorRealIdx(s);
+      rows.push({ src:'協賛データ', label:s.company+(s.plan?'（'+s.plan+'）':''), amount:Number(s.amount)||0, date:s.paymentDate||'', editAction:'openSponsorEdit('+sIdx+')' });
     });
-    state.incomeLog.filter(e => e.category === category).forEach(e => rows.push({ src:'手動入力', label:e.source||'', amount:Number(e.amount)||0, date:e.date }));
+    state.incomeLog.filter(e => e.category === category).forEach(e => {
+      const idx = _incomeLogRealIdx(e);
+      rows.push({ src:'手動入力', label:e.source||'', amount:Number(e.amount)||0, date:e.date, editAction:'openIncomeEdit('+idx+')' });
+    });
     html += renderBreakdownTable(rows);
     return html;
   }
   // 通常の手動収入
-  const rows = state.incomeLog.filter(e => e.category === category).map(e => ({ src:'手動入力', label:e.source||'', amount:Number(e.amount)||0, date:e.date, note:e.note }));
+  const rows = state.incomeLog.filter(e => e.category === category).map(e => {
+    const idx = _incomeLogRealIdx(e);
+    return { src:'手動入力', label:e.source||'', amount:Number(e.amount)||0, date:e.date, note:e.note, editAction:'openIncomeEdit('+idx+')' };
+  });
   html += renderBreakdownTable(rows);
   return html;
 }
@@ -1318,12 +1369,14 @@ function buildExpenseBreakdown(category) {
     (state.staff || []).forEach(s => {
       const amt = Number(s.payAmount) || 0;
       if (amt <= 0) return;
-      rows.push({ src: s.paid ? 'スタッフ✓済' : 'スタッフ未払', label:s.name+(s.shift?'（'+s.shift+'）':''), amount:amt, date:s.paidDate||'', paid:s.paid });
+      const sIdx = _staffRealIdx(s);
+      rows.push({ src: s.paid ? 'スタッフ✓済' : 'スタッフ未払', label:s.name+(s.shift?'（'+s.shift+'）':''), amount:amt, date:s.paidDate||'', paid:s.paid, editAction:'openStaffEdit('+sIdx+')' });
     });
   }
   state.expenseLog.filter(e => e.category === category).forEach(e => {
     const isPaid = e.paid !== false;
-    rows.push({ src: isPaid ? '手動入力' : '未払予定', label:(e.vendor||'')+(e.advancedBy?' 立替:'+e.advancedBy:''), amount:Number(e.amount)||0, date:e.date, note:e.note, paid:isPaid });
+    const idx = _expenseLogRealIdx(e);
+    rows.push({ src: isPaid ? '手動入力' : '未払予定', label:(e.vendor||'')+(e.advancedBy?' 立替:'+e.advancedBy:''), amount:Number(e.amount)||0, date:e.date, note:e.note, paid:isPaid, editAction:'openExpenseEdit('+idx+')' });
   });
   return renderBreakdownTable(rows);
 }
@@ -1332,7 +1385,7 @@ function renderBreakdownTable(rows) {
   if (!rows || rows.length === 0) return '<div style="color:#999;font-size:12px;padding:6px 0">内訳データはまだありません</div>';
   const total = rows.reduce((s,r)=>s+(Number(r.amount)||0),0);
   return '<table style="width:100%;font-size:12px;border-collapse:collapse">' +
-    '<thead><tr style="border-bottom:1px solid #E0E0E0;color:#666"><th style="text-align:left;padding:4px 6px;font-weight:600">種別</th><th style="text-align:left;padding:4px 6px;font-weight:600">内容</th><th style="text-align:left;padding:4px 6px;font-weight:600">日付</th><th style="text-align:right;padding:4px 6px;font-weight:600">金額</th></tr></thead><tbody>' +
+    '<thead><tr style="border-bottom:1px solid #E0E0E0;color:#666"><th style="text-align:left;padding:4px 6px;font-weight:600">種別</th><th style="text-align:left;padding:4px 6px;font-weight:600">内容</th><th style="text-align:left;padding:4px 6px;font-weight:600">日付</th><th style="text-align:right;padding:4px 6px;font-weight:600">金額</th><th style="text-align:center;padding:4px 6px;font-weight:600">編集</th></tr></thead><tbody>' +
     rows.map(r => {
       let srcBadge = r.src;
       let bg = '#EBF5FB', color = '#2980B9';
@@ -1342,9 +1395,12 @@ function renderBreakdownTable(rows) {
       else if (r.src === 'スタッフ✓済') { bg='#D5F5E3'; color='#1E8449'; srcBadge='✓ 支払済(スタッフ)'; }
       else if (r.src === 'スタッフ未払') { bg='#FEF5E7'; color='#B7950B'; srcBadge='💸 未払(スタッフ)'; }
       else if (r.src === '手動入力') { bg='#F4F4F4'; color='#555'; }
-      return '<tr style="border-bottom:1px solid #F0F0F0"><td style="padding:4px 6px"><span style="background:'+bg+';color:'+color+';padding:2px 8px;border-radius:4px;font-size:11px;white-space:nowrap">'+srcBadge+'</span></td><td style="padding:4px 6px">'+escapeHtml(r.label||'')+(r.note?' <span style="color:#999">('+escapeHtml(r.note)+')</span>':'')+'</td><td style="padding:4px 6px;color:#666">'+escapeHtml(r.date||'')+'</td><td style="padding:4px 6px;text-align:right;font-weight:600'+(r.paid===false?';color:#B7950B':'')+'">¥'+(Number(r.amount)||0).toLocaleString()+'</td></tr>';
+      const editBtn = r.editAction
+        ? '<button class="btn small ghost" onclick="event.stopPropagation();'+r.editAction+'" style="padding:2px 8px;font-size:11px">✏ 編集</button>'
+        : '<span style="color:#BDC3C7;font-size:11px">—</span>';
+      return '<tr style="border-bottom:1px solid #F0F0F0"><td style="padding:4px 6px"><span style="background:'+bg+';color:'+color+';padding:2px 8px;border-radius:4px;font-size:11px;white-space:nowrap">'+srcBadge+'</span></td><td style="padding:4px 6px">'+escapeHtml(r.label||'')+(r.note?' <span style="color:#999">('+escapeHtml(r.note)+')</span>':'')+'</td><td style="padding:4px 6px;color:#666">'+escapeHtml(r.date||'')+'</td><td style="padding:4px 6px;text-align:right;font-weight:600'+(r.paid===false?';color:#B7950B':'')+'">¥'+(Number(r.amount)||0).toLocaleString()+'</td><td style="padding:4px 6px;text-align:center">'+editBtn+'</td></tr>';
     }).join('') +
-    '<tr style="border-top:2px solid #999;background:#FAFAFA"><td colspan="3" style="padding:6px;text-align:right;font-weight:700">合計</td><td style="padding:6px;text-align:right;font-weight:700">¥'+total.toLocaleString()+'</td></tr>' +
+    '<tr style="border-top:2px solid #999;background:#FAFAFA"><td colspan="3" style="padding:6px;text-align:right;font-weight:700">合計</td><td style="padding:6px;text-align:right;font-weight:700">¥'+total.toLocaleString()+'</td><td></td></tr>' +
     '</tbody></table>';
 }
 
