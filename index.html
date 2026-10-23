@@ -342,10 +342,48 @@ details[open] summary { margin-bottom: 10px; }
 }
 .toast.show { opacity: 1; transform: translateY(0); }
 
-@media (max-width: 680px) {
+@media (max-width: 900px) {
   main { padding: 14px; }
-  header.app-header h1 { font-size: 17px; }
-  .cards { grid-template-columns: repeat(2, 1fr); }
+  header.app-header { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+  header.app-header h1 { font-size: 17px; width:100%; }
+  .header-meta { gap: 6px; flex-wrap: wrap; justify-content: flex-start; width: 100%; }
+  .header-meta .countdown { font-size: 11px; padding: 3px 8px; }
+  .cards { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .cards .card .value { font-size: 20px; }
+  nav.tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding: 0 8px; }
+  nav.tabs::-webkit-scrollbar { height: 3px; }
+  nav.tabs button { white-space: nowrap; font-size: 12px; padding: 8px 10px; }
+  .panel { padding: 14px 12px; }
+  .section-title { font-size: 18px; }
+  .toolbar { flex-wrap: wrap; gap: 6px; }
+  .toolbar .spacer { display: none; }
+  .toolbar select, .toolbar input, .toolbar button { font-size: 12px; padding: 6px 10px; }
+  .form-row { grid-template-columns: 1fr; gap: 10px; }
+  .form-row label.full { grid-column: 1 / -1; }
+  .data-table { font-size: 12px; }
+  .data-table th, .data-table td { padding: 6px 4px; }
+  .data-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+  .modal-content { max-width: 95vw; max-height: 90vh; margin: 12px; padding: 16px; }
+  .template-chips { gap: 6px; }
+  .template-chip { font-size: 11px; padding: 5px 10px; }
+  #boothGrid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important; gap: 8px; }
+  .booth { padding: 8px; font-size: 11px; }
+  .cards[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+  .btn.small { font-size: 11px; padding: 5px 8px; }
+  .status-badge { font-size: 10px; padding: 2px 6px; }
+}
+
+@media (max-width: 480px) {
+  main { padding: 10px; }
+  header.app-header h1 { font-size: 15px; }
+  .cards { grid-template-columns: 1fr 1fr; }
+  .cards .card { padding: 10px; }
+  .cards .card .value { font-size: 18px; }
+  .cards .card .label { font-size: 10px; }
+  nav.tabs button { font-size: 11px; padding: 7px 8px; }
+  .panel h3 { font-size: 14px; }
+  #yearSelector { font-size: 11px; padding: 4px 6px; }
+  .sync-indicator { font-size: 10px; padding: 3px 7px; }
 }
 
 /* ==== Login Screen ==== */
@@ -590,7 +628,13 @@ details[open] summary { margin-bottom: 10px; }
   </div>
 
   <div class="panel">
-    <h3>支出を1件追加</h3>
+    <h3 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">支出を1件追加
+      <span style="display:flex;gap:6px;align-items:center">
+        <input type="file" id="receiptPhotoInput" accept="image/*" capture="environment" style="display:none" onchange="handleReceiptPhoto(event)">
+        <button class="btn small gold" onclick="document.getElementById('receiptPhotoInput').click()">📸 レシート写真から読み取り</button>
+      </span>
+    </h3>
+    <div id="receiptOcrStatus" style="font-size:12px;margin-bottom:8px"></div>
     <div class="form-row">
       <label>支払日<input type="date" id="exDate"></label>
       <label>支払先<input type="text" id="exVendor" placeholder="例：ココス"></label>
@@ -2174,6 +2218,97 @@ function saveIncomeEdit(idx) {
   closeModal();
   renderAccounting();
   toast('編集を保存しました');
+}
+
+async function handleReceiptPhoto(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const status = document.getElementById('receiptOcrStatus');
+  status.innerHTML = '<span style="color:#B7950B">📷 画像を読み取り中... (数秒かかります)</span>';
+  try {
+    // 画像を base64 に
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = () => reject(new Error('画像読み込み失敗'));
+      reader.readAsDataURL(file);
+    });
+    const categoryNames = (state.settings.expense || []).map(e => e.name);
+    const prompt = `このレシート画像を読み取って、以下のJSON形式で返してください。該当する情報が読み取れない項目は空文字""または0にしてください。
+
+{
+  "date": "YYYY-MM-DD形式の日付",
+  "vendor": "店舗名",
+  "amount": 税込合計金額(数値、カンマなし),
+  "category": "次のうち最も適切な費目を1つ：${categoryNames.join(' / ')}",
+  "note": "商品の簡潔な内容（例：会議用のお弁当 3人分）"
+}
+
+注意：
+- amountは必ず税込合計を数値で返す（¥記号なし、カンマなし）
+- dateは画像内の日付をYYYY-MM-DD形式で（例：2026-09-05）
+- vendorは店舗名のみ（会社名や住所は除く）
+- categoryは必ず上記リストから1つ選ぶ`;
+
+    const body = JSON.stringify({
+      contents: [{
+        parts: [
+          { text: prompt },
+          { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            date: { type: 'STRING' },
+            vendor: { type: 'STRING' },
+            amount: { type: 'NUMBER' },
+            category: { type: 'STRING' },
+            note: { type: 'STRING' }
+          }
+        }
+      }
+    });
+
+    let result = null, lastErr = null;
+    for (const model of GEMINI_MODELS) {
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body
+        });
+        if (!res.ok) { lastErr = new Error('HTTP ' + res.status); continue; }
+        const data = await res.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) { lastErr = new Error('空のレスポンス'); continue; }
+        result = JSON.parse(text);
+        break;
+      } catch (e) { lastErr = e; }
+    }
+    if (!result) throw lastErr || new Error('読み取り失敗');
+
+    // フォームに流し込み
+    if (result.date) document.getElementById('exDate').value = result.date;
+    if (result.vendor) document.getElementById('exVendor').value = result.vendor;
+    if (result.amount) document.getElementById('exAmount').value = Math.round(Number(result.amount));
+    if (result.note) document.getElementById('exNote').value = result.note;
+    const catSel = document.getElementById('exCategory');
+    if (result.category && catSel) {
+      for (const opt of catSel.options) {
+        if (opt.value === result.category) { catSel.value = result.category; break; }
+      }
+    }
+    status.innerHTML = `<span style="color:#1E8449">✅ 読み取り完了！内容を確認して「+追加」ボタンを押してください。</span><div style="color:#666;font-size:11px;margin-top:4px">読み取り結果：${escapeHtml(result.vendor||'')} / ¥${(result.amount||0).toLocaleString()} / ${escapeHtml(result.category||'')} / ${escapeHtml(result.date||'')}</div>`;
+  } catch (e) {
+    console.error(e);
+    status.innerHTML = `<span style="color:#C0392B">❌ 読み取り失敗：${escapeHtml(e.message)}</span><div style="color:#666;font-size:11px;margin-top:4px">手動で入力してください。</div>`;
+  } finally {
+    event.target.value = ''; // 同じ画像を再度選べるように
+  }
 }
 
 function addExpense() {
