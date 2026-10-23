@@ -452,6 +452,7 @@ details[open] summary { margin-bottom: 10px; }
 <header class="app-header">
   <h1>金魚祭り 運営管理</h1>
   <div class="header-meta">
+    <select id="yearSelector" onchange="switchYear(this.value)" style="padding:5px 8px;border-radius:6px;border:1px solid #D5D5D5;font-size:13px;font-weight:600;background:#FFF8E7;color:#B7950B"></select>
     <div class="countdown" id="countdown">開催日を設定</div>
     <span id="syncStatus" class="sync-indicator"><span class="dot"></span><span class="text">同期</span></span>
     <button class="btn ghost small" onclick="refreshFromServer()" title="最新データを再読み込み">🔄</button>
@@ -462,6 +463,7 @@ details[open] summary { margin-bottom: 10px; }
 
 <nav class="tabs" id="tabs">
   <button data-tab="dashboard" class="active">🏠 全体</button>
+  <button data-tab="schedule">📅 スケジュール</button>
   <button data-tab="accounting">💰 会計</button>
   <button data-tab="performers">🎤 出演者</button>
   <button data-tab="exhibitors">🏮 出店者</button>
@@ -495,6 +497,44 @@ details[open] summary { margin-bottom: 10px; }
       <div id="topTasksList"></div>
     </div>
   </div>
+</section>
+
+<!-- ============ SCHEDULE ============ -->
+<section class="tab-panel" id="tab-schedule">
+  <h2 class="section-title">📅 年間スケジュール</h2>
+
+  <div class="toolbar">
+    <select id="schFilterCategory" onchange="renderSchedule()">
+      <option value="">すべてのカテゴリ</option>
+      <option>準備会議</option>
+      <option>申込〆切</option>
+      <option>本番</option>
+      <option>報告書</option>
+      <option>マイルストーン</option>
+      <option>その他</option>
+    </select>
+    <select id="schFilterStatus" onchange="renderSchedule()">
+      <option value="">すべての状態</option>
+      <option value="pending">未完了のみ</option>
+      <option value="done">完了のみ</option>
+    </select>
+    <select id="schViewMode" onchange="renderSchedule()">
+      <option value="month">月別表示</option>
+      <option value="list">リスト表示</option>
+    </select>
+    <div class="spacer"></div>
+    <button class="btn ghost small" onclick="loadScheduleTemplate()">📋 標準テンプレを読込</button>
+    <button class="btn" onclick="openScheduleEdit()">+ 予定を追加</button>
+  </div>
+
+  <div class="cards">
+    <div class="card accent"><div class="label">年間予定数</div><div class="value" id="schTotal">0</div></div>
+    <div class="card gold"><div class="label">未完了</div><div class="value" id="schPending">0</div></div>
+    <div class="card green"><div class="label">完了</div><div class="value" id="schDone">0</div></div>
+    <div class="card blue"><div class="label">直近7日以内</div><div class="value" id="schUpcoming">0</div></div>
+  </div>
+
+  <div id="scheduleContent"></div>
 </section>
 
 <!-- ============ ACCOUNTING ============ -->
@@ -880,6 +920,8 @@ async function bootApp() {
 
   if (renumberBooths()) saveState();
   if (migrateIncomeCategories()) saveState();
+  if (migrateYearField()) saveState();
+  populateYearSelector();
   renderDashboard();
   renderAccounting();
   renderPerformers();
@@ -1003,6 +1045,9 @@ function defaultState() {
       { date: '2026-03-03', vendor: '株式会社ココスジャパン', category: '会議費', amount: 11429, method: 'クレジットカード', note: '' },
     ],
     incomeLog: [],
+    schedule: [],
+    year: 2026,
+    archive: {},
   };
 }
 
@@ -1060,7 +1105,366 @@ document.getElementById('tabs').addEventListener('click', e => {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
   if (tab === 'dashboard') renderDashboard();
   if (tab === 'accounting') renderAccounting();
+  if (tab === 'schedule') renderSchedule();
 });
+
+// ============================================================
+//                   YEAR SWITCH & ARCHIVE
+// ============================================================
+const YEAR_KEYS = ['settings','performers','exhibitors','sponsors','staff','tasks','meetings','expenseLog','incomeLog','schedule'];
+
+function migrateYearField() {
+  let changed = false;
+  if (state.year == null) { state.year = 2026; changed = true; }
+  if (!state.archive || typeof state.archive !== 'object') { state.archive = {}; changed = true; }
+  if (!Array.isArray(state.schedule)) { state.schedule = []; changed = true; }
+  return changed;
+}
+
+function populateYearSelector() {
+  const sel = document.getElementById('yearSelector');
+  if (!sel) return;
+  const years = new Set();
+  years.add(state.year);
+  Object.keys(state.archive||{}).forEach(y => years.add(Number(y)));
+  const sorted = Array.from(years).sort((a,b)=>b-a);
+  sel.innerHTML = sorted.map(y => `<option value="${y}" ${y===state.year?'selected':''}>${y}年度</option>`).join('');
+}
+
+function extractYearData() {
+  const snapshot = {};
+  YEAR_KEYS.forEach(k => { snapshot[k] = state[k]; });
+  return JSON.parse(JSON.stringify(snapshot));
+}
+
+function applyYearData(data) {
+  YEAR_KEYS.forEach(k => { if (data[k] !== undefined) state[k] = data[k]; });
+}
+
+function switchYear(targetYear) {
+  targetYear = Number(targetYear);
+  if (!targetYear || targetYear === state.year) return;
+  if (!confirm(`${state.year}年度 → ${targetYear}年度 に切り替えます。\n現在のデータは自動保存されます。よろしいですか？`)) {
+    populateYearSelector();
+    return;
+  }
+  // 現状をarchiveに保存
+  state.archive = state.archive || {};
+  state.archive[state.year] = extractYearData();
+  // 対象年のデータを呼び出し
+  const target = state.archive[targetYear];
+  if (!target) {
+    toast('⚠ ' + targetYear + '年度のデータがありません');
+    populateYearSelector();
+    return;
+  }
+  applyYearData(target);
+  delete state.archive[targetYear]; // 展開済はarchiveから抜く
+  state.year = targetYear;
+  saveState();
+  populateYearSelector();
+  rerenderAll();
+  toast(targetYear + '年度に切り替えました');
+}
+
+function rerenderAll() {
+  if (typeof renderDashboard === 'function') renderDashboard();
+  if (typeof renderAccounting === 'function') renderAccounting();
+  if (typeof renderPerformers === 'function') renderPerformers();
+  if (typeof renderExhibitors === 'function') renderExhibitors();
+  if (typeof renderSponsors === 'function') renderSponsors();
+  if (typeof renderStaff === 'function') renderStaff();
+  if (typeof renderTasks === 'function') renderTasks();
+  if (typeof renderMeetings === 'function') renderMeetings();
+  if (typeof renderSchedule === 'function') renderSchedule();
+}
+
+function createNewYear() {
+  const nextYear = Number(prompt('新年度の西暦を入力してください（例：2027）', String(state.year + 1)));
+  if (!nextYear || nextYear < 2020 || nextYear > 2100) { toast('無効な年度です'); return; }
+  if (nextYear === state.year || (state.archive && state.archive[nextYear])) {
+    toast(nextYear + '年度は既に存在します');
+    return;
+  }
+  const carryoverChoice = confirm(
+    nextYear + '年度を作成します。\n\n【引き継ぎ内容】\n' +
+    '✓ 予算（収入・支出）\n' +
+    '✓ 出店者・出演者・協賛・スタッフ の名簿（金額・支払状況はリセット）\n' +
+    '✓ システム設定\n\n' +
+    '【リセットされるもの】\n' +
+    '✗ 売上・集金・領収書状況\n' +
+    '✗ タスク・議事録\n' +
+    '✗ 収支ログ・スケジュール\n\n' +
+    '現在の' + state.year + '年度データはアーカイブに保存されます。実行しますか？'
+  );
+  if (!carryoverChoice) return;
+
+  // 現状をアーカイブ
+  state.archive = state.archive || {};
+  state.archive[state.year] = extractYearData();
+
+  // 新年度データを構築
+  const nextData = {
+    settings: JSON.parse(JSON.stringify(state.settings)),
+    performers: (state.performers||[]).map(p => ({
+      id: p.id, name: p.name, groupName: p.groupName, category: p.category,
+      contact: p.contact, phone: p.phone, lineChatUrl: p.lineChatUrl,
+      status: '未連絡', note: '', lineNote: '', nextContact:'', lastContact:'', stageTime:'', snsMedia:''
+    })),
+    exhibitors: (state.exhibitors||[]).map(e => ({
+      id: e.id, name: e.name, category: e.category, days: e.days, fee: e.fee,
+      commissionRate: e.commissionRate, contact: e.contact, phone: e.phone,
+      lineChatUrl: e.lineChatUrl, address: e.address, zip: e.zip, addressee: e.addressee,
+      status: e.name ? '未連絡' : '未連絡',
+      salesDay1:0, salesDay2:0,
+      day1FeePaid:false, day2FeePaid:false, day1FeeReceipted:false, day2FeeReceipted:false,
+      day1CommissionPaid:false, day2CommissionPaid:false, day1CommissionReceipted:false, day2CommissionReceipted:false,
+      staffCount:0, staffNote:'', bingoType:'', bingoProduct:'', bingoCount:0, bingoNote:'',
+      lineNote:'', nextContact:'', lastContact:'', whichDay:''
+    })),
+    sponsors: (state.sponsors||[]).map(s => ({
+      company:s.company, contactName:s.contactName, plan:s.plan, category:s.category,
+      zip:s.zip, address:s.address, phone:s.phone, email:s.email,
+      productionItems:s.productionItems, amount:s.amount,
+      status:'未連絡', paymentDate:'', receiptStatus:'', invoiceStatus:'', productionStatus:'', note:''
+    })),
+    staff: (state.staff||[]).map(s => ({
+      name:s.name, contact:s.contact, roles:s.roles||[], shift:'', note:'',
+      payAmount:0, paid:false, paidDate:''
+    })),
+    tasks: [],
+    meetings: [],
+    expenseLog: [],
+    incomeLog: [],
+    schedule: []
+  };
+
+  applyYearData(nextData);
+  state.year = nextYear;
+  saveState();
+  populateYearSelector();
+  rerenderAll();
+  toast('✨ ' + nextYear + '年度を作成しました！');
+}
+
+// ============================================================
+//                      SCHEDULE
+// ============================================================
+const SCHEDULE_CATEGORIES = ['準備会議','申込〆切','本番','報告書','マイルストーン','その他'];
+const SCHEDULE_CATEGORY_COLORS = {
+  '準備会議': { bg: '#EBF5FB', color: '#2980B9' },
+  '申込〆切': { bg: '#FADBD8', color: '#C0392B' },
+  '本番': { bg: '#D5F5E3', color: '#1E8449' },
+  '報告書': { bg: '#FCF3CF', color: '#B7950B' },
+  'マイルストーン': { bg: '#E8DAEF', color: '#7D3C98' },
+  'その他': { bg: '#F4F4F4', color: '#555' }
+};
+
+function renderSchedule() {
+  if (!Array.isArray(state.schedule)) state.schedule = [];
+  const list = state.schedule.map((s,i) => ({...s, _idx:i}));
+  const total = list.length;
+  const pending = list.filter(s => !s.done).length;
+  const done = list.filter(s => s.done).length;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const in7days = new Date(today.getTime() + 7*86400000);
+  const upcoming = list.filter(s => {
+    if (!s.date || s.done) return false;
+    const d = new Date(s.date);
+    return d >= today && d <= in7days;
+  }).length;
+  const set = (id,v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('schTotal', total);
+  set('schPending', pending);
+  set('schDone', done);
+  set('schUpcoming', upcoming);
+
+  const catFilter = document.getElementById('schFilterCategory').value;
+  const statusFilter = document.getElementById('schFilterStatus').value;
+  const viewMode = document.getElementById('schViewMode').value;
+  let filtered = list;
+  if (catFilter) filtered = filtered.filter(s => s.category === catFilter);
+  if (statusFilter === 'pending') filtered = filtered.filter(s => !s.done);
+  if (statusFilter === 'done') filtered = filtered.filter(s => s.done);
+  filtered.sort((a,b) => (a.date||'z').localeCompare(b.date||'z'));
+
+  const content = document.getElementById('scheduleContent');
+  if (filtered.length === 0) {
+    content.innerHTML = '<div class="panel"><div class="empty">予定がまだ登録されていません。「+ 予定を追加」から追加するか、「📋 標準テンプレを読込」で基本予定を一括追加できます。</div></div>';
+    return;
+  }
+
+  if (viewMode === 'list') {
+    content.innerHTML = '<div class="panel" style="padding:0"><table class="data-table">' +
+      '<thead><tr><th>日付</th><th>時間</th><th>カテゴリ</th><th>タイトル</th><th>担当</th><th>紐付タスク</th><th>状態</th><th></th></tr></thead><tbody>' +
+      filtered.map(s => renderScheduleRow(s)).join('') + '</tbody></table></div>';
+    return;
+  }
+
+  // Month view
+  const byMonth = {};
+  filtered.forEach(s => {
+    const key = (s.date||'未定').slice(0,7);
+    if (!byMonth[key]) byMonth[key] = [];
+    byMonth[key].push(s);
+  });
+  const monthKeys = Object.keys(byMonth).sort();
+  content.innerHTML = monthKeys.map(mk => {
+    const monthLabel = mk === '未定' ? '📌 日付未定' : mk.replace('-','年')+'月';
+    return '<div class="panel"><h3 style="margin-top:0">' + monthLabel + '（' + byMonth[mk].length + '件）</h3>' +
+      '<table class="data-table"><thead><tr><th>日付</th><th>時間</th><th>カテゴリ</th><th>タイトル</th><th>担当</th><th>紐付タスク</th><th>状態</th><th></th></tr></thead><tbody>' +
+      byMonth[mk].map(s => renderScheduleRow(s)).join('') +
+      '</tbody></table></div>';
+  }).join('');
+}
+
+function renderScheduleRow(s) {
+  const cat = SCHEDULE_CATEGORY_COLORS[s.category] || SCHEDULE_CATEGORY_COLORS['その他'];
+  const catBadge = '<span style="background:'+cat.bg+';color:'+cat.color+';padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">'+escapeHtml(s.category||'その他')+'</span>';
+  const assignees = (s.assigneeIds||[]).map(id => {
+    const st = state.staff.find(x => x.name === id);
+    return st ? escapeHtml(st.name) : escapeHtml(id);
+  }).join(', ');
+  const task = s.relatedTaskId ? (state.tasks[s.relatedTaskId]?.title || '-') : '';
+  const statusCell = s.done
+    ? '<span class="status-badge status-完了">✓ 完了</span>'
+    : '<button class="btn small" onclick="toggleSchedule(' + s._idx + ')">完了にする</button>';
+  const dateDisp = s.date ? s.date.replace(/-/g,'/') : '<span style="color:#999">未定</span>';
+  const dayClass = (() => {
+    if (!s.date || s.done) return '';
+    const d = new Date(s.date);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const diff = Math.floor((d - today)/86400000);
+    if (diff < 0) return 'style="background:#FADBD8;color:#C0392B;padding:2px 6px;border-radius:4px"';
+    if (diff <= (s.reminderDaysBefore||3)) return 'style="background:#FCF3CF;color:#B7950B;padding:2px 6px;border-radius:4px"';
+    return '';
+  })();
+  return '<tr>' +
+    '<td><span '+dayClass+'>'+dateDisp+'</span></td>' +
+    '<td>' + escapeHtml(s.time||'') + '</td>' +
+    '<td>' + catBadge + '</td>' +
+    '<td><strong>' + escapeHtml(s.title||'') + '</strong>' + (s.description?'<div style="font-size:11px;color:#666;margin-top:2px">'+escapeHtml(s.description)+'</div>':'') + '</td>' +
+    '<td style="font-size:12px">' + assignees + '</td>' +
+    '<td style="font-size:12px">' + escapeHtml(task) + '</td>' +
+    '<td>' + statusCell + '</td>' +
+    '<td><button class="btn small ghost" onclick="openScheduleEdit('+s._idx+')">編集</button> <button class="btn small danger" onclick="deleteSchedule('+s._idx+')">削除</button></td>' +
+    '</tr>';
+}
+
+function openScheduleEdit(idx) {
+  const isNew = idx === undefined;
+  const s = isNew
+    ? { title:'', date:'', time:'', description:'', category:'準備会議', assigneeIds:[], relatedTaskId:'', reminderDaysBefore:3, done:false }
+    : { ...state.schedule[idx] };
+  const staffOpts = (state.staff||[]).map(st => '<label style="display:flex;align-items:center;gap:4px;font-weight:normal;background:#F8F9FA;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px"><input type="checkbox" value="'+escapeHtml(st.name)+'" '+((s.assigneeIds||[]).includes(st.name)?'checked':'')+'> '+escapeHtml(st.name)+'</label>').join('');
+  const taskOpts = '<option value="">（なし）</option>' + (state.tasks||[]).map((t,i) => '<option value="'+i+'" '+(String(s.relatedTaskId)===String(i)?'selected':'')+'>'+escapeHtml(t.title||'タスク'+i)+'</option>').join('');
+  const catOpts = SCHEDULE_CATEGORIES.map(c => '<option '+(c===s.category?'selected':'')+'>'+c+'</option>').join('');
+  showModal(`
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>${isNew?'📅 予定を追加':'📅 予定を編集'}</h3>
+    <div class="form-row">
+      <label>日付<input type="date" id="sch_date" value="${s.date||''}"></label>
+      <label>時間<input type="text" id="sch_time" value="${escapeHtml(s.time||'')}" placeholder="例：15:00-17:00"></label>
+      <label>カテゴリ<select id="sch_category">${catOpts}</select></label>
+    </div>
+    <div class="form-row">
+      <label class="full">タイトル <span style="color:#D63031">*</span><input id="sch_title" value="${escapeHtml(s.title||'')}" placeholder="例：第1回実行委員会"></label>
+    </div>
+    <div class="form-row">
+      <label class="full">詳細・メモ<textarea id="sch_description">${escapeHtml(s.description||'')}</textarea></label>
+    </div>
+    <div class="form-row">
+      <label>リマインド（何日前から黄色で警告）<input type="number" id="sch_reminderDaysBefore" value="${s.reminderDaysBefore||3}" min="0" max="60"></label>
+      <label>紐付タスク<select id="sch_relatedTaskId">${taskOpts}</select></label>
+    </div>
+    <div class="form-row">
+      <label class="full">担当者（複数選択可）
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">${staffOpts || '<span style="color:#999;font-size:12px">スタッフを登録してください</span>'}</div>
+      </label>
+    </div>
+    ${!isNew ? '<div class="form-row"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="sch_done" '+(s.done?'checked':'')+'> 完了済にする</label></div>' : ''}
+    <div class="form-actions">
+      <button class="btn" onclick="saveSchedule(${isNew?'null':idx})">保存</button>
+      ${isNew?'':`<button class="btn danger" onclick="deleteSchedule(${idx})">削除</button>`}
+      <button class="btn secondary" onclick="closeModal()">キャンセル</button>
+    </div>
+  `);
+}
+
+function saveSchedule(idx) {
+  const assigneeIds = Array.from(document.querySelectorAll('#modalContent input[type=checkbox]:checked')).filter(c => c.id !== 'sch_done').map(c => c.value);
+  const relatedRaw = document.getElementById('sch_relatedTaskId').value;
+  const s = {
+    date: document.getElementById('sch_date').value,
+    time: document.getElementById('sch_time').value.trim(),
+    category: document.getElementById('sch_category').value,
+    title: document.getElementById('sch_title').value.trim(),
+    description: document.getElementById('sch_description').value.trim(),
+    reminderDaysBefore: Number(document.getElementById('sch_reminderDaysBefore').value) || 0,
+    relatedTaskId: relatedRaw === '' ? '' : Number(relatedRaw),
+    assigneeIds: assigneeIds,
+    done: idx === null ? false : (document.getElementById('sch_done')?.checked || false)
+  };
+  if (!s.title) { toast('タイトルを入力してください'); return; }
+  if (idx === null) state.schedule.push(s);
+  else state.schedule[idx] = { ...state.schedule[idx], ...s };
+  saveState();
+  closeModal();
+  renderSchedule();
+  renderDashboard();
+  toast('保存しました');
+}
+
+function deleteSchedule(idx) {
+  if (!confirm('この予定を削除しますか？')) return;
+  state.schedule.splice(idx, 1);
+  saveState();
+  closeModal();
+  renderSchedule();
+  renderDashboard();
+}
+
+function toggleSchedule(idx) {
+  const s = state.schedule[idx];
+  if (!s) return;
+  s.done = !s.done;
+  saveState();
+  renderSchedule();
+  renderDashboard();
+  toast(s.done ? '完了にしました' : '未完了に戻しました');
+}
+
+function loadScheduleTemplate() {
+  if (!confirm('年間標準テンプレ（約20件）を一括で追加します。既存の予定はそのままです。実行しますか？')) return;
+  const y = state.year;
+  const template = [
+    { date: y+'-01-15', category:'準備会議', title:'第1回 実行委員会', description:'年間計画・役割分担', reminderDaysBefore: 7 },
+    { date: y+'-02-28', category:'申込〆切', title:'出店者募集告知スタート', description:'SNS・LINE で告知開始', reminderDaysBefore: 7 },
+    { date: y+'-03-15', category:'準備会議', title:'第2回 実行委員会', description:'出店者募集状況確認', reminderDaysBefore: 5 },
+    { date: y+'-04-15', category:'マイルストーン', title:'協賛募集スタート', description:'前年度協賛先に連絡', reminderDaysBefore: 7 },
+    { date: y+'-05-15', category:'準備会議', title:'第3回 実行委員会', description:'出店者確定・配置検討', reminderDaysBefore: 5 },
+    { date: y+'-06-15', category:'申込〆切', title:'出店申込〆切', description:'申込みフォームクローズ', reminderDaysBefore: 14 },
+    { date: y+'-06-30', category:'マイルストーン', title:'出演者ラインナップ確定', description:'ステージ進行表作成開始', reminderDaysBefore: 7 },
+    { date: y+'-07-15', category:'準備会議', title:'第4回 実行委員会', description:'広報戦略・ポスター確認', reminderDaysBefore: 5 },
+    { date: y+'-07-31', category:'申込〆切', title:'協賛募集〆切', description:'入金確認含めて', reminderDaysBefore: 14 },
+    { date: y+'-08-10', category:'マイルストーン', title:'ポスター・チラシ配布開始', description:'町内および近隣地域', reminderDaysBefore: 7 },
+    { date: y+'-08-20', category:'準備会議', title:'第5回 実行委員会（直前）', description:'当日役割最終確認', reminderDaysBefore: 5 },
+    { date: y+'-08-25', category:'マイルストーン', title:'出店者ガイダンス配信', description:'LINE で配布資料を送付', reminderDaysBefore: 3 },
+    { date: y+'-09-01', category:'マイルストーン', title:'スタッフ最終打合せ', description:'前日準備内容確認', reminderDaysBefore: 3 },
+    { date: y+'-09-04', category:'準備会議', title:'前日準備', description:'会場設営・備品搬入', reminderDaysBefore: 2 },
+    { date: y+'-09-05', category:'本番', title:'🎏 金魚祭り 1日目', description:'本番当日', reminderDaysBefore: 7 },
+    { date: y+'-09-06', category:'本番', title:'🎏 金魚祭り 2日目', description:'本番当日 ＋ 撤収', reminderDaysBefore: 7 },
+    { date: y+'-09-15', category:'マイルストーン', title:'精算・集金完了目安', description:'出店料・歩合の回収完了', reminderDaysBefore: 7 },
+    { date: y+'-09-30', category:'報告書', title:'収支報告書 作成', description:'会計タブからエクスポート', reminderDaysBefore: 7 },
+    { date: y+'-10-15', category:'準備会議', title:'反省会', description:'今年度の振り返り、来年度へ', reminderDaysBefore: 7 },
+    { date: y+'-11-30', category:'報告書', title:'記念誌 発送', description:'協賛先・出店者に郵送', reminderDaysBefore: 14 }
+  ];
+  template.forEach(t => state.schedule.push({ ...t, assigneeIds: [], relatedTaskId: '', done: false }));
+  saveState();
+  renderSchedule();
+  renderDashboard();
+  toast('✨ 標準テンプレを' + template.length + '件追加しました');
+}
 
 // ============================================================
 //                         DASHBOARD
@@ -1145,24 +1549,42 @@ function renderDashboard() {
 
   // Upcoming
   const upcoming = [];
-  performers.filter(p => p.nextContact).forEach(p => upcoming.push({ date: p.nextContact, label: `🎤 ${p.name}に連絡` }));
-  exhibitors.filter(e => e.nextContact).forEach(e => upcoming.push({ date: e.nextContact, label: `🏮 ${e.id} ${e.name || '空き'}に連絡` }));
-  tasks.filter(t => t.dueDate && t.status !== '完了').forEach(t => upcoming.push({ date: t.dueDate, label: `✅ ${t.title}` }));
+  performers.filter(p => p.nextContact).forEach(p => upcoming.push({ date: p.nextContact, label: `🎤 ${p.name}に連絡`, kind:'contact' }));
+  exhibitors.filter(e => e.nextContact).forEach(e => upcoming.push({ date: e.nextContact, label: `🏮 ${e.id} ${e.name || '空き'}に連絡`, kind:'contact' }));
+  tasks.filter(t => t.dueDate && t.status !== '完了').forEach(t => upcoming.push({ date: t.dueDate, label: `✅ ${t.title}`, kind:'task' }));
+  (state.schedule||[]).filter(s => !s.done && s.date).forEach(s => {
+    const cat = SCHEDULE_CATEGORY_COLORS[s.category] || SCHEDULE_CATEGORY_COLORS['その他'];
+    upcoming.push({ date: s.date, label: '📅 ' + (s.title||''), kind:'schedule', category: s.category, reminderDaysBefore: s.reminderDaysBefore||3, time: s.time });
+  });
   {
     const fd1 = getFestivalDate1(), fd2 = state.settings.festivalDate2;
     if (fd1 && fd2) {
-      upcoming.push({ date: fd1, label: '🎏 金魚祭り 1日目' });
-      upcoming.push({ date: fd2, label: '🎏 金魚祭り 2日目' });
+      upcoming.push({ date: fd1, label: '🎏 金魚祭り 1日目', kind:'festival' });
+      upcoming.push({ date: fd2, label: '🎏 金魚祭り 2日目', kind:'festival' });
     } else if (fd1) {
-      upcoming.push({ date: fd1, label: '🎏 金魚祭り 開催日' });
+      upcoming.push({ date: fd1, label: '🎏 金魚祭り 開催日', kind:'festival' });
     }
   }
-  upcoming.sort((a,b) => a.date.localeCompare(b.date));
+  // 今日より前は除く、今日以降のみ
+  const todayStr = new Date().toISOString().slice(0,10);
+  const upFuture = upcoming.filter(u => u.date >= todayStr);
+  upFuture.sort((a,b) => a.date.localeCompare(b.date));
   const upList = document.getElementById('upcomingList');
-  if (upcoming.length === 0) {
+  if (upFuture.length === 0) {
     upList.innerHTML = '<div class="empty">直近の予定はありません</div>';
   } else {
-    upList.innerHTML = upcoming.slice(0, 8).map(u => `<div style="padding:8px 0;border-bottom:1px solid #F0EAE0;font-size:13px"><strong>${u.date}</strong> — ${escapeHtml(u.label)}</div>`).join('');
+    const today = new Date(); today.setHours(0,0,0,0);
+    upList.innerHTML = upFuture.slice(0, 10).map(u => {
+      const d = new Date(u.date);
+      const diff = Math.floor((d - today)/86400000);
+      let dateDisp = u.date;
+      let highlight = '';
+      if (diff === 0) { dateDisp = '🔥 今日'; highlight = 'background:#FADBD8;color:#C0392B;'; }
+      else if (diff === 1) { dateDisp = '⚡ 明日'; highlight = 'background:#FCF3CF;color:#B7950B;'; }
+      else if (diff <= (u.reminderDaysBefore||3)) { dateDisp = `あと${diff}日 (${u.date.slice(5)})`; highlight = 'background:#FCF3CF;color:#B7950B;'; }
+      else { dateDisp = u.date.slice(5) + '（あと' + diff + '日）'; }
+      return `<div style="padding:8px 0;border-bottom:1px solid #F0EAE0;font-size:13px"><span style="padding:2px 6px;border-radius:4px;${highlight}font-weight:600">${dateDisp}</span> ${u.time?'<span style="color:#666;font-size:11px">'+escapeHtml(u.time)+'</span> ':''}${escapeHtml(u.label)}</div>`;
+    }).join('');
   }
 
   // Top tasks
@@ -3782,6 +4204,12 @@ function openSettings() {
       <summary>📥 データの取り込み（インポート）</summary>
       <p style="font-size:13px;margin:10px 0">エクスポートしたJSONファイルから取り込みます。<strong>現在のオンラインデータを上書きします</strong>。</p>
       <button class="btn gold" onclick="importFromJson()">JSONファイルを選択して取り込む</button>
+    </details>
+    <details style="margin-top:18px" open>
+      <summary>📆 年度管理</summary>
+      <p style="font-size:13px;margin:10px 0;line-height:1.6">現在の年度は <strong>${state.year}年度</strong> です。<br>新年度を作成すると、現在データはアーカイブに自動保存され、名簿と予算をベースにした新しい年度の帳簿が開始します。</p>
+      <button class="btn" onclick="createNewYear()">✨ 新年度を作成（引き継ぎあり）</button>
+      <p style="font-size:12px;color:#888;margin-top:10px">※ 過去年度はヘッダーの年度セレクターから閲覧・編集可能です。</p>
     </details>
     <details style="margin-top:10px">
       <summary>🚪 ログアウト</summary>
