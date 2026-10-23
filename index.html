@@ -832,11 +832,68 @@ function showSyncStatus(mode, msg) {
   }
 }
 
+async function ensureArchiveBin() {
+  if (state._archiveBinId) return state._archiveBinId;
+  // 新規Bin作成
+  const res = await fetch('https://api.jsonbin.io/v3/b', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Master-Key': JSONBIN_KEY,
+      'X-Bin-Name': 'kingyo-archive',
+      'X-Bin-Private': 'true'
+    },
+    body: JSON.stringify({ archives: {} })
+  });
+  if (!res.ok) throw new Error('Archive bin作成失敗: ' + res.status);
+  const data = await res.json();
+  state._archiveBinId = data.metadata.id;
+  return state._archiveBinId;
+}
+
+async function saveArchiveToServer(archive) {
+  const binId = await ensureArchiveBin();
+  const res = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Master-Key': JSONBIN_KEY,
+      'X-Bin-Versioning': 'false'
+    },
+    body: JSON.stringify({ archives: archive })
+  });
+  if (!res.ok) throw new Error('Archive save failed: ' + res.status);
+}
+
+async function loadArchiveFromServer(binId) {
+  const useBinId = binId || (state && state._archiveBinId);
+  if (!useBinId) return {};
+  try {
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${useBinId}/latest`, {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    if (!res.ok) return {};
+    const data = await res.json();
+    return (data.record && data.record.archives) || {};
+  } catch (e) {
+    console.error(e);
+    return {};
+  }
+}
+
 async function saveToServer() {
   if (!isLoggedIn || isLoadingFromServer) return;
   showSyncStatus('saving');
   try {
     state._updatedAt = new Date().toISOString();
+    // アーカイブは別binに保存（メインbinは軽量維持）
+    const archive = state.archive || {};
+    if (Object.keys(archive).length > 0) {
+      try { await saveArchiveToServer(archive); } catch(ae) { console.error('archive save failed:', ae); }
+    }
+    // メインbinにはアーカイブを除外した本体のみ送る
+    const mainState = { ...state };
+    mainState.archive = {}; // 空にして送信
     const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
       method: 'PUT',
       headers: {
@@ -844,7 +901,7 @@ async function saveToServer() {
         'X-Master-Key': JSONBIN_KEY,
         'X-Bin-Versioning': 'false',
       },
-      body: JSON.stringify(state),
+      body: JSON.stringify(mainState),
     });
     if (!res.ok) throw new Error('Save failed: ' + res.status);
     showSyncStatus('synced');
@@ -862,7 +919,17 @@ async function loadFromServer() {
     });
     if (!res.ok) return null;
     const data = await res.json();
-    return data.record;
+    const rec = data.record;
+    // アーカイブは別binから読み込み
+    if (rec && rec._archiveBinId) {
+      try {
+        const tempState = state; state = rec; // 一時的にアサイン
+        const arch = await loadArchiveFromServer();
+        rec.archive = arch || {};
+        state = tempState;
+      } catch(e) { console.error('archive load failed', e); rec.archive = {}; }
+    }
+    return rec;
   } catch (e) {
     console.error(e);
     return null;
@@ -1107,6 +1174,47 @@ document.getElementById('tabs').addEventListener('click', e => {
   if (tab === 'accounting') renderAccounting();
   if (tab === 'schedule') renderSchedule();
 });
+
+// ============================================================
+//                   連絡リスト操作
+// ============================================================
+function removeFromContactList(type, idx) {
+  const arr = type === 'performer' ? state.performers : state.exhibitors;
+  const item = arr[idx];
+  if (!item) return;
+  const label = type === 'performer' ? '出演者' : '出店者';
+  if (!confirm(`${label}「${item.name || '空き'}」をリストから外します（状態を「辞退」に変更）。本当に？`)) return;
+  item.status = '辞退';
+  saveState();
+  renderDashboard();
+  if (type === 'performer') renderPerformers(); else renderExhibitors();
+  toast('リストから外しました（辞退に変更）');
+}
+
+function deleteContactPerson(type, idx) {
+  const arr = type === 'performer' ? state.performers : state.exhibitors;
+  const item = arr[idx];
+  if (!item) return;
+  const label = type === 'performer' ? '出演者' : '出店者';
+  if (type === 'exhibitor') {
+    // 出店者はブース情報が残るのでクリアのみ
+    if (!confirm(`出店者「${item.name || '空き'}」のデータをクリアします（ブース枠は残ります）。よろしいですか？`)) return;
+    const id = item.id;
+    state.exhibitors[idx] = { id, name:'', category:'', days:0, fee:0, commissionRate:10, salesDay1:0, salesDay2:0, status:'未連絡', lineNote:'', lineChatUrl:'', contact:'', phone:'', nextContact:'', lastContact:'' };
+    saveState();
+    renderDashboard();
+    renderExhibitors();
+    toast('出店者データをクリアしました');
+  } else {
+    // 出演者は完全削除
+    if (!confirm(`出演者「${item.name || '名無し'}」を完全に削除します。元に戻せません。よろしいですか？`)) return;
+    state.performers.splice(idx, 1);
+    saveState();
+    renderDashboard();
+    renderPerformers();
+    toast('出演者を削除しました');
+  }
+}
 
 // ============================================================
 //                   YEAR SWITCH & ARCHIVE
@@ -1521,7 +1629,11 @@ function renderDashboard() {
     cap.innerHTML = `<h3>📣 連絡が必要な人（${contactList.length}人）</h3>` +
       contactList.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #F0EAE0;font-size:13px">
         <span><strong>${escapeHtml(c.name)}</strong> <span class="status-badge ${c.reason==='未連絡'?'status-未連絡':'status-交渉中'}" style="margin-left:4px">${c.reason==='未連絡'?'未連絡':'連絡予定 '+c.nextContact}</span></span>
-        <button class="btn small gold" onclick="openSendModal('${c.type}',{preselectedIdx:${c.idx}})">📨 連絡する</button>
+        <span style="display:flex;gap:4px">
+          <button class="btn small gold" onclick="openSendModal('${c.type}',{preselectedIdx:${c.idx}})">📨 連絡する</button>
+          <button class="btn small ghost" onclick="removeFromContactList('${c.type}',${c.idx})" title="このリストから外す">👋 連絡不要</button>
+          <button class="btn small danger" onclick="deleteContactPerson('${c.type}',${c.idx})" title="このデータごと削除">🗑</button>
+        </span>
       </div>`).join('');
   }
 
