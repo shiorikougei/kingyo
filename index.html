@@ -503,6 +503,7 @@ details[open] summary { margin-bottom: 10px; }
 <nav class="tabs" id="tabs">
   <button data-tab="dashboard" class="active">🏠 全体</button>
   <button data-tab="schedule">📅 スケジュール</button>
+  <button data-tab="simulator">🧮 シミュレーター</button>
   <button data-tab="accounting">💰 会計</button>
   <button data-tab="performers">🎤 出演者</button>
   <button data-tab="exhibitors">🏮 出店者</button>
@@ -574,6 +575,154 @@ details[open] summary { margin-bottom: 10px; }
   </div>
 
   <div id="scheduleContent"></div>
+</section>
+
+<!-- ============ SIMULATOR ============ -->
+<section class="tab-panel" id="tab-simulator">
+  <h2 class="section-title">🧮 シミュレーター</h2>
+
+  <div class="panel" style="background:linear-gradient(135deg,#FFF8E7,#F4ECE0);border:1px solid #E8DFC5">
+    <h3 style="margin-top:0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <span>🎯 最終結果サマリー</span>
+      <button class="btn small" onclick="loadCurrentBudgetToSim()">📥 現在の予算から値を取り込む</button>
+    </h3>
+    <div id="simSummary"></div>
+  </div>
+
+  <!-- ② 来場者数シミュレーター -->
+  <div class="panel">
+    <h3 style="margin-top:0">② 👥 来場者数シミュレーター</h3>
+    <p style="font-size:12px;color:#666;margin-bottom:10px">天気・広告・出店者数・ステージイベント数から来場者数を推定します。結果は①に自動反映。</p>
+
+    <div class="form-row">
+      <label>ベース来場者数（前年実績・デフォルト）
+        <input type="number" id="simBaseVisitors" value="2000" min="0" step="100" oninput="runSimulator()">
+      </label>
+      <label>天気予報
+        <select id="simWeather" onchange="runSimulator()">
+          <option value="1.3">☀ 快晴（×1.3）</option>
+          <option value="1.15">🌤 晴れ（×1.15）</option>
+          <option value="1.0" selected>⛅ 曇り（×1.0）</option>
+          <option value="0.7">🌧 小雨（×0.7）</option>
+          <option value="0.4">⛈ 雨/強風（×0.4）</option>
+        </select>
+      </label>
+      <label>広告投資額（円）
+        <input type="number" id="simAdSpend" value="150000" step="10000" oninput="runSimulator()">
+      </label>
+    </div>
+    <div class="form-row">
+      <label>総出店者数（ブース）
+        <input type="number" id="simBoothCount" value="40" min="0" oninput="runSimulator()">
+      </label>
+      <label>ステージ出演者数
+        <input type="number" id="simPerformerCount" value="10" min="0" oninput="runSimulator()">
+      </label>
+      <label>開催日数
+        <select id="simFestivalDays" onchange="runSimulator()">
+          <option value="1">1日</option>
+          <option value="2" selected>2日</option>
+        </select>
+      </label>
+    </div>
+    <div id="simVisitorResult"></div>
+  </div>
+
+  <!-- ① 収支シミュレーター -->
+  <div class="panel">
+    <h3 style="margin-top:0">① 💰 収支シミュレーター</h3>
+    <p style="font-size:12px;color:#666;margin-bottom:10px">値を変えるとリアルタイムで収支を試算します。</p>
+
+    <h4 style="margin-top:12px;color:#B7950B">📥 収入側</h4>
+    <div class="form-row">
+      <label>2日出店ブース数
+        <input type="number" id="simBooth2d" value="30" min="0" oninput="runSimulator()">
+      </label>
+      <label>2日出店料（円/ブース）
+        <input type="number" id="simFee2d" value="5000" step="500" oninput="runSimulator()">
+      </label>
+      <label>1日出店ブース数
+        <input type="number" id="simBooth1d" value="10" min="0" oninput="runSimulator()">
+      </label>
+      <label>1日出店料（円/ブース）
+        <input type="number" id="simFee1d" value="3000" step="500" oninput="runSimulator()">
+      </label>
+    </div>
+    <div class="form-row">
+      <label>1日1ブース平均売上（円）
+        <input type="number" id="simSalesPerBooth" value="30000" step="1000" oninput="runSimulator()">
+      </label>
+      <label>売上歩合率（%）
+        <input type="number" id="simCommissionRate" value="10" min="0" max="100" step="1" oninput="runSimulator()">
+      </label>
+      <label>入場料（円/人）
+        <input type="number" id="simEntryFee" value="200" step="50" oninput="runSimulator()">
+      </label>
+      <label>入場有料化率（%・中学生以上など）
+        <input type="number" id="simEntryRate" value="70" min="0" max="100" step="5" oninput="runSimulator()">
+      </label>
+    </div>
+    <div class="form-row">
+      <label>本部販売 平均客単価（円）
+        <input type="number" id="simHqPerVisitor" value="500" step="50" oninput="runSimulator()">
+      </label>
+      <label>本部販売購入率（%）
+        <input type="number" id="simHqRate" value="40" min="0" max="100" step="5" oninput="runSimulator()">
+      </label>
+      <label>協賛金目標（円）
+        <input type="number" id="simSponsorTotal" value="500000" step="10000" oninput="runSimulator()">
+      </label>
+      <label>雑入（円）
+        <input type="number" id="simMiscIncome" value="0" step="1000" oninput="runSimulator()">
+      </label>
+    </div>
+
+    <h4 style="margin-top:16px;color:#2874A6">📤 支出側</h4>
+    <div class="form-row">
+      <label>会場設営費
+        <input type="number" id="simExpVenue" value="60000" step="5000" oninput="runSimulator()">
+      </label>
+      <label>ステージ演出費
+        <input type="number" id="simExpStage" value="130000" step="5000" oninput="runSimulator()">
+      </label>
+      <label>人件費（有償スタッフ）
+        <input type="number" id="simExpStaff" value="200000" step="10000" oninput="runSimulator()">
+      </label>
+      <label>保険警備費
+        <input type="number" id="simExpInsurance" value="6000" step="1000" oninput="runSimulator()">
+      </label>
+    </div>
+    <div class="form-row">
+      <label>運営費
+        <input type="number" id="simExpOps" value="640000" step="10000" oninput="runSimulator()">
+      </label>
+      <label>運営原価（仕入等）
+        <input type="number" id="simExpCogs" value="190000" step="10000" oninput="runSimulator()">
+      </label>
+      <label>広告宣伝費
+        <input type="number" id="simExpAd" value="150000" step="10000" oninput="runSimulator()">
+      </label>
+      <label>会議費
+        <input type="number" id="simExpMeeting" value="135000" step="10000" oninput="runSimulator()">
+      </label>
+    </div>
+    <div class="form-row">
+      <label>雑費
+        <input type="number" id="simExpMisc" value="20000" step="5000" oninput="runSimulator()">
+      </label>
+    </div>
+
+    <div id="simDetailResult" style="margin-top:14px"></div>
+  </div>
+
+  <div class="panel">
+    <div class="form-actions" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <button class="btn secondary" onclick="resetSimulator()">🔄 デフォルト値に戻す</button>
+      <span>
+        <button class="btn gold" onclick="applySimulatorToBudget()">📤 この想定を予算に反映</button>
+      </span>
+    </div>
+  </div>
 </section>
 
 <!-- ============ ACCOUNTING ============ -->
@@ -1236,7 +1385,232 @@ document.getElementById('tabs').addEventListener('click', e => {
   if (tab === 'dashboard') renderDashboard();
   if (tab === 'accounting') renderAccounting();
   if (tab === 'schedule') renderSchedule();
+  if (tab === 'simulator') runSimulator();
 });
+
+// ============================================================
+//                    SIMULATOR
+// ============================================================
+function _v(id, d = 0) { const el = document.getElementById(id); return el ? (Number(el.value) || d) : d; }
+
+function runSimulator() {
+  // ② 来場者数シミュレーター
+  const base = _v('simBaseVisitors', 2000);
+  const weather = _v('simWeather', 1);
+  const adSpend = _v('simAdSpend', 0);
+  const boothCount = _v('simBoothCount', 40);
+  const performerCount = _v('simPerformerCount', 10);
+  const days = _v('simFestivalDays', 2);
+
+  // 広告係数: ¥10万で1.0、¥20万で1.15、¥30万で1.25、頭打ち1.35
+  const adFactor = Math.min(1.35, 1.0 + Math.log10(Math.max(1, adSpend/50000))*0.1);
+  // 出店者係数: 30ブースで1.0、50で1.15、80で1.25
+  const boothFactor = Math.min(1.25, 1.0 + (boothCount-30)*0.005);
+  // ステージ係数: 10組で1.0、20組で1.1
+  const perfFactor = Math.min(1.2, 1.0 + (performerCount-10)*0.01);
+
+  const standardVisitorsPerDay = Math.round(base * weather * adFactor * boothFactor * perfFactor);
+  const optimistic = Math.round(standardVisitorsPerDay * 1.2);
+  const pessimistic = Math.round(standardVisitorsPerDay * 0.7);
+  const totalVisitorsStandard = standardVisitorsPerDay * days;
+
+  const vResult = document.getElementById('simVisitorResult');
+  if (vResult) {
+    vResult.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px">
+        <div style="background:#D5F5E3;padding:14px;border-radius:8px;text-align:center">
+          <div style="font-size:11px;color:#1E8449">楽観シナリオ /日</div>
+          <div style="font-size:22px;font-weight:700;color:#1E8449">${optimistic.toLocaleString()}人</div>
+        </div>
+        <div style="background:#FEF9E7;padding:14px;border-radius:8px;text-align:center;border:2px solid #F1C40F">
+          <div style="font-size:11px;color:#B7950B">想定シナリオ /日 ★</div>
+          <div style="font-size:26px;font-weight:800;color:#B7950B">${standardVisitorsPerDay.toLocaleString()}人</div>
+          <div style="font-size:11px;color:#B7950B;margin-top:2px">${days}日合計：${totalVisitorsStandard.toLocaleString()}人</div>
+        </div>
+        <div style="background:#FADBD8;padding:14px;border-radius:8px;text-align:center">
+          <div style="font-size:11px;color:#C0392B">悲観シナリオ /日</div>
+          <div style="font-size:22px;font-weight:700;color:#C0392B">${pessimistic.toLocaleString()}人</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:#666;line-height:1.5">
+        係数：天気 ×${weather.toFixed(2)} / 広告 ×${adFactor.toFixed(2)} / 出店 ×${boothFactor.toFixed(2)} / ステージ ×${perfFactor.toFixed(2)}
+      </div>
+    `;
+  }
+
+  // ① 収支シミュレーター
+  const booth2d = _v('simBooth2d', 0);
+  const fee2d = _v('simFee2d', 0);
+  const booth1d = _v('simBooth1d', 0);
+  const fee1d = _v('simFee1d', 0);
+  const salesPerBooth = _v('simSalesPerBooth', 0);
+  const commRate = _v('simCommissionRate', 0) / 100;
+  const entryFee = _v('simEntryFee', 0);
+  const entryRate = _v('simEntryRate', 0) / 100;
+  const hqPerVisitor = _v('simHqPerVisitor', 0);
+  const hqRate = _v('simHqRate', 0) / 100;
+  const sponsorTotal = _v('simSponsorTotal', 0);
+  const miscIncome = _v('simMiscIncome', 0);
+
+  // 収入計算
+  const feeIncome = booth2d * fee2d + booth1d * fee1d;
+  const totalBoothDays = booth2d * days + booth1d * 1; // 1日出店は1日、2日出店は開催日数分
+  const totalSales = totalBoothDays * salesPerBooth;
+  const commissionIncome = Math.floor(totalSales * commRate);
+  const paidVisitors = Math.round(totalVisitorsStandard * entryRate);
+  const entryIncome = paidVisitors * entryFee;
+  const hqBuyers = Math.round(totalVisitorsStandard * hqRate);
+  const hqIncome = hqBuyers * hqPerVisitor;
+  const totalIncome = feeIncome + commissionIncome + entryIncome + hqIncome + sponsorTotal + miscIncome;
+
+  // 支出計算
+  const expenses = {
+    '会場設営費': _v('simExpVenue'),
+    'ステージ演出費': _v('simExpStage'),
+    '人件費': _v('simExpStaff'),
+    '保険警備費': _v('simExpInsurance'),
+    '運営費': _v('simExpOps'),
+    '運営原価': _v('simExpCogs'),
+    '広告宣伝費': _v('simExpAd'),
+    '会議費': _v('simExpMeeting'),
+    '雑費': _v('simExpMisc')
+  };
+  const totalExpense = Object.values(expenses).reduce((a,b)=>a+b, 0);
+  const balance = totalIncome - totalExpense;
+
+  // サマリー表示
+  const summary = document.getElementById('simSummary');
+  if (summary) {
+    const isPositive = balance >= 0;
+    const balColor = isPositive ? '#1E8449' : '#C0392B';
+    const icon = isPositive ? '📈' : '📉';
+    summary.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:16px;align-items:center">
+        <div style="text-align:center">
+          <div style="font-size:12px;color:#666;margin-bottom:4px">想定収入</div>
+          <div style="font-size:22px;font-weight:700;color:#B7950B">¥${totalIncome.toLocaleString()}</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:12px;color:#666;margin-bottom:4px">想定支出</div>
+          <div style="font-size:22px;font-weight:700;color:#2874A6">¥${totalExpense.toLocaleString()}</div>
+        </div>
+        <div style="text-align:center;border-left:2px solid #E8DFC5;padding-left:16px">
+          <div style="font-size:12px;color:#666;margin-bottom:4px">${icon} 想定利益</div>
+          <div style="font-size:26px;font-weight:800;color:${balColor}">${isPositive?'+':''}¥${balance.toLocaleString()}</div>
+          <div style="font-size:11px;color:${balColor};font-weight:600;margin-top:2px">${isPositive?'黒字':'赤字'}</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;font-size:12px;color:#666">想定来場者数：${totalVisitorsStandard.toLocaleString()}人（${days}日合計、標準シナリオ）</div>
+    `;
+  }
+
+  const detail = document.getElementById('simDetailResult');
+  if (detail) {
+    detail.innerHTML = `
+      <table class="data-table" style="font-size:12px">
+        <thead><tr><th>項目</th><th class="num">内訳</th><th class="num">金額</th></tr></thead>
+        <tbody>
+          <tr><td>出店料収入</td><td style="color:#666">${booth2d}×¥${fee2d.toLocaleString()} + ${booth1d}×¥${fee1d.toLocaleString()}</td><td class="num">¥${feeIncome.toLocaleString()}</td></tr>
+          <tr><td>売上歩合収入</td><td style="color:#666">¥${totalSales.toLocaleString()} × ${(commRate*100).toFixed(0)}%</td><td class="num">¥${commissionIncome.toLocaleString()}</td></tr>
+          <tr><td>入場料収入</td><td style="color:#666">${paidVisitors.toLocaleString()}人 × ¥${entryFee}</td><td class="num">¥${entryIncome.toLocaleString()}</td></tr>
+          <tr><td>本部販売収入</td><td style="color:#666">${hqBuyers.toLocaleString()}人 × ¥${hqPerVisitor}</td><td class="num">¥${hqIncome.toLocaleString()}</td></tr>
+          <tr><td>協賛金収入</td><td style="color:#666">目標値</td><td class="num">¥${sponsorTotal.toLocaleString()}</td></tr>
+          <tr><td>雑入</td><td></td><td class="num">¥${miscIncome.toLocaleString()}</td></tr>
+          <tr style="background:#FEF9E7;font-weight:700"><td>収入合計</td><td></td><td class="num">¥${totalIncome.toLocaleString()}</td></tr>
+          ${Object.entries(expenses).map(([k,v])=>`<tr><td>${k}</td><td></td><td class="num" style="color:#2874A6">¥${v.toLocaleString()}</td></tr>`).join('')}
+          <tr style="background:#EBF5FB;font-weight:700"><td>支出合計</td><td></td><td class="num">¥${totalExpense.toLocaleString()}</td></tr>
+        </tbody>
+      </table>
+    `;
+  }
+
+  window._simLastResult = {
+    totalIncome, totalExpense, balance, totalVisitorsStandard,
+    feeIncome, commissionIncome, entryIncome, hqIncome, sponsorTotal, miscIncome, expenses
+  };
+}
+
+function loadCurrentBudgetToSim() {
+  const s = state.settings;
+  if (!s) return;
+  // 支出予算を取り込み
+  const expByName = {};
+  (s.expense||[]).forEach(e => expByName[e.name] = e.budget);
+  const setE = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+  setE('simExpVenue', expByName['会場設営費']);
+  setE('simExpStage', expByName['ステージ演出費']);
+  setE('simExpStaff', expByName['人件費']);
+  setE('simExpInsurance', expByName['保険警備費']);
+  setE('simExpOps', expByName['運営費']);
+  setE('simExpCogs', expByName['運営原価']);
+  setE('simExpAd', expByName['広告宣伝費']);
+  setE('simExpMeeting', expByName['会議費']);
+  setE('simExpMisc', expByName['雑費']);
+  // 収入系
+  const incByName = {};
+  (s.income||[]).forEach(i => incByName[i.name] = i.budget);
+  if (incByName['協賛金収入']) setE('simSponsorTotal', incByName['協賛金収入']);
+  // 開催日数
+  if (s.festivalDays) document.getElementById('simFestivalDays').value = s.festivalDays;
+  // 出店者数（現在のブース状況から）
+  const booths2d = (state.exhibitors||[]).filter(b => b && b.name && b.status === '確定' && Number(b.days) === 2).length;
+  const booths1d = (state.exhibitors||[]).filter(b => b && b.name && b.status === '確定' && Number(b.days) === 1).length;
+  if (booths2d > 0) setE('simBooth2d', booths2d);
+  if (booths1d > 0) setE('simBooth1d', booths1d);
+  // ステージ出演者
+  const perfs = (state.performers||[]).filter(p => p && p.status === '確定').length;
+  if (perfs > 0) setE('simPerformerCount', perfs);
+  setE('simBoothCount', booths2d + booths1d);
+  runSimulator();
+  toast('現在の予算・出店者・出演者数を取り込みました');
+}
+
+function resetSimulator() {
+  if (!confirm('シミュレーター値をデフォルトに戻しますか？')) return;
+  const defaults = {
+    simBaseVisitors:2000, simWeather:1.0, simAdSpend:150000,
+    simBoothCount:40, simPerformerCount:10, simFestivalDays:2,
+    simBooth2d:30, simFee2d:5000, simBooth1d:10, simFee1d:3000,
+    simSalesPerBooth:30000, simCommissionRate:10,
+    simEntryFee:200, simEntryRate:70,
+    simHqPerVisitor:500, simHqRate:40,
+    simSponsorTotal:500000, simMiscIncome:0,
+    simExpVenue:60000, simExpStage:130000, simExpStaff:200000, simExpInsurance:6000,
+    simExpOps:640000, simExpCogs:190000, simExpAd:150000, simExpMeeting:135000, simExpMisc:20000
+  };
+  Object.entries(defaults).forEach(([id,v]) => { const el = document.getElementById(id); if (el) el.value = v; });
+  runSimulator();
+}
+
+function applySimulatorToBudget() {
+  const r = window._simLastResult;
+  if (!r) { toast('まずシミュレーターを実行してください'); return; }
+  if (!confirm('この試算値を「' + state.year + '年度」の予算に反映します。現在の予算値は上書きされます。よろしいですか？')) return;
+  const expMap = {
+    '会場設営費': r.expenses['会場設営費'],
+    'ステージ演出費': r.expenses['ステージ演出費'],
+    '人件費': r.expenses['人件費'],
+    '保険警備費': r.expenses['保険警備費'],
+    '運営費': r.expenses['運営費'],
+    '運営原価': r.expenses['運営原価'],
+    '広告宣伝費': r.expenses['広告宣伝費'],
+    '会議費': r.expenses['会議費'],
+    '雑費': r.expenses['雑費']
+  };
+  (state.settings.expense||[]).forEach(e => { if (expMap[e.name] != null) e.budget = expMap[e.name]; });
+  const incMap = {
+    '出店料収入': r.feeIncome,
+    '売上歩合収入': r.commissionIncome,
+    '入場料収入': r.entryIncome,
+    '本部販売収入': r.hqIncome,
+    '協賛金収入': r.sponsorTotal,
+    '雑入': r.miscIncome
+  };
+  (state.settings.income||[]).forEach(i => { if (incMap[i.name] != null) i.budget = incMap[i.name]; });
+  saveState();
+  if (typeof renderAccounting === 'function') renderAccounting();
+  toast('✅ 予算に反映しました（会計タブで確認できます）');
+}
 
 // ============================================================
 //                   連絡リスト操作
