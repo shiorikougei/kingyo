@@ -1222,6 +1222,13 @@ document.getElementById('tabs').addEventListener('click', e => {
 // ============================================================
 //                   連絡リスト操作
 // ============================================================
+function toggleContactAlert() {
+  state.settings.hideContactAlert = !state.settings.hideContactAlert;
+  saveState();
+  renderDashboard();
+  toast(state.settings.hideContactAlert ? '連絡アラートを非表示にしました' : '連絡アラートを表示しました');
+}
+
 function removeFromContactList(type, idx) {
   const arr = type === 'performer' ? state.performers : state.exhibitors;
   const item = arr[idx];
@@ -1663,14 +1670,19 @@ function renderDashboard() {
   `;
 
   // Contact alerts (送り忘れ防止)
-  const contactList = getContactList();
   const cap = document.getElementById('contactAlertPanel');
+  if (state.settings.hideContactAlert) {
+    cap.style.borderLeft = '4px solid #BDC3C7';
+    cap.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="color:#999;font-size:13px">📣 連絡アラート（非表示中）</span><button class="btn small ghost" onclick="toggleContactAlert()">表示に戻す</button></div>';
+    // 次のセクションに進むためにreturnしない
+  } else {
+  const contactList = getContactList();
   if (contactList.length === 0) {
     cap.style.borderLeft = '4px solid #27AE60';
-    cap.innerHTML = '<h3>📣 連絡が必要な人</h3><div style="color:#1E8449;font-size:13px;padding:4px 0">✅ 連絡待ちの人はいません。バッチリです！</div>';
+    cap.innerHTML = '<h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px">📣 連絡が必要な人<button class="btn small ghost" onclick="toggleContactAlert()" style="font-weight:normal">非表示にする</button></h3><div style="color:#1E8449;font-size:13px;padding:4px 0">✅ 連絡待ちの人はいません。バッチリです！</div>';
   } else {
     cap.style.borderLeft = '4px solid #E67E22';
-    cap.innerHTML = `<h3>📣 連絡が必要な人（${contactList.length}人）</h3>` +
+    cap.innerHTML = `<h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px">📣 連絡が必要な人（${contactList.length}人）<button class="btn small ghost" onclick="toggleContactAlert()" style="font-weight:normal">非表示にする</button></h3>` +
       contactList.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #F0EAE0;font-size:13px">
         <span><strong>${escapeHtml(c.name)}</strong> <span class="status-badge ${c.reason==='未連絡'?'status-未連絡':'status-交渉中'}" style="margin-left:4px">${c.reason==='未連絡'?'未連絡':'連絡予定 '+c.nextContact}</span></span>
         <span style="display:flex;gap:4px">
@@ -1679,6 +1691,7 @@ function renderDashboard() {
           <button class="btn small danger" onclick="deleteContactPerson('${c.type}',${c.idx})" title="このデータごと削除">🗑</button>
         </span>
       </div>`).join('');
+  }
   }
 
   // Budget chart
