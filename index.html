@@ -783,12 +783,25 @@ details[open] summary { margin-bottom: 10px; }
   <h2 class="section-title">スタッフ管理</h2>
 
   <div class="toolbar">
+    <select id="staffTypeFilter" onchange="renderStaff()">
+      <option value="">すべての種別</option>
+      <option value="実行委員">👔 実行委員</option>
+      <option value="ボランティア">🙌 ボランティア</option>
+      <option value="有償スタッフ">💰 有償スタッフ</option>
+    </select>
     <select id="staffFilter" onchange="renderStaff()">
       <option value="">すべての役割</option>
     </select>
     <input class="search" id="staffSearch" placeholder="名前で検索..." oninput="renderStaff()">
     <div class="spacer"></div>
     <button class="btn" onclick="openStaffEdit()">+ スタッフを追加</button>
+  </div>
+
+  <div class="cards">
+    <div class="card accent"><div class="label">👔 実行委員</div><div class="value" id="staffCountCommittee">0</div></div>
+    <div class="card blue"><div class="label">🙌 ボランティア</div><div class="value" id="staffCountVolunteer">0</div></div>
+    <div class="card gold"><div class="label">💰 有償スタッフ</div><div class="value" id="staffCountPaid">0</div></div>
+    <div class="card green"><div class="label">合計</div><div class="value" id="staffCountTotal">0</div></div>
   </div>
 
   <div id="staffPaySummary" style="font-size:13px;margin-bottom:10px"></div>
@@ -1838,10 +1851,11 @@ function sumSponsorPaid() {
   return (state.sponsors || []).filter(s => s && s.status === '入金済').reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
 }
 function sumStaffPayPaid() {
-  return (state.staff || []).filter(s => s && s.paid).reduce((sum, s) => sum + (Number(s.payAmount) || 0), 0);
+  // 有償スタッフのみを集計（実行委員・ボランティアは除外）
+  return (state.staff || []).filter(s => s && s.paid && (s.type === '有償スタッフ' || !s.type)).reduce((sum, s) => sum + (Number(s.payAmount) || 0), 0);
 }
 function sumStaffPayAll() {
-  return (state.staff || []).reduce((sum, s) => sum + (Number(s.payAmount) || 0), 0);
+  return (state.staff || []).filter(s => s.type === '有償スタッフ' || !s.type).reduce((sum, s) => sum + (Number(s.payAmount) || 0), 0);
 }
 function getIncomeActual(category) {
   let base = sumIncome(category);
@@ -3844,32 +3858,51 @@ function confirmSponsorImport() {
 // ============================================================
 const staffRoles = ['会計', '出演者担当', '出店者担当', '広報', '警備', '会場設営', 'ステージ進行', '当日スタッフ', 'その他'];
 
+const STAFF_TYPES = ['実行委員', 'ボランティア', '有償スタッフ'];
+const STAFF_TYPE_META = {
+  '実行委員': { icon: '👔', bg: '#FADBD8', color: '#C0392B' },
+  'ボランティア': { icon: '🙌', bg: '#EBF5FB', color: '#2980B9' },
+  '有償スタッフ': { icon: '💰', bg: '#FEF9E7', color: '#B7950B' }
+};
+
 function renderStaff() {
+  // 後方互換: typeが無いstaffを「実行委員」として扱う
+  (state.staff || []).forEach(s => { if (!s.type) s.type = '実行委員'; });
+
   // Populate role filter
   const sel = document.getElementById('staffFilter');
   if (sel.options.length === 1) {
     staffRoles.forEach(r => { const o = document.createElement('option'); o.value = r; o.textContent = r; sel.appendChild(o); });
   }
+  const typeFilter = document.getElementById('staffTypeFilter').value;
   const filter = document.getElementById('staffFilter').value;
   const search = document.getElementById('staffSearch').value.trim().toLowerCase();
   let list = state.staff.map((s,i) => ({...s, _idx:i}));
+  if (typeFilter) list = list.filter(s => (s.type||'実行委員') === typeFilter);
   if (filter) list = list.filter(s => (s.roles||[]).includes(filter));
   if (search) list = list.filter(s => s.name.toLowerCase().includes(search));
 
   const rows = list.length === 0
-    ? `<tr><td colspan="7" class="empty">スタッフがまだ登録されていません</td></tr>`
+    ? `<tr><td colspan="8" class="empty">該当するスタッフがいません</td></tr>`
     : list.map(s => {
+      const type = s.type || '実行委員';
+      const meta = STAFF_TYPE_META[type] || STAFF_TYPE_META['実行委員'];
+      const typeBadge = '<span class="status-badge" style="background:'+meta.bg+';color:'+meta.color+'">'+meta.icon+' '+type+'</span>';
       const pay = Number(s.payAmount) || 0;
-      let payCell = pay > 0 ? '¥' + pay.toLocaleString() : '<span style="color:#BDC3C7">—</span>';
-      let statusCell = '<span style="color:#BDC3C7;font-size:12px">—</span>';
-      if (pay > 0) {
-        statusCell = s.paid
+      let payCell, statusCell;
+      if (type === '有償スタッフ') {
+        payCell = pay > 0 ? '¥' + pay.toLocaleString() : '<span style="color:#BDC3C7">未設定</span>';
+        statusCell = pay > 0 ? (s.paid
           ? '<span class="status-badge status-完了">✓ 支払済</span>'
-          : '<span class="status-badge" style="background:#FEF5E7;color:#B7950B">未払</span>';
+          : '<span class="status-badge" style="background:#FEF5E7;color:#B7950B">未払</span>') : '<span style="color:#BDC3C7;font-size:12px">—</span>';
+      } else {
+        payCell = '<span style="color:#BDC3C7">—</span>';
+        statusCell = '<span style="color:#BDC3C7;font-size:12px">—</span>';
       }
       return `<tr>
+        <td>${typeBadge}</td>
         <td><strong>${escapeHtml(s.name)}</strong></td>
-        <td>${(s.roles||[]).map(r => `<span class="status-badge" style="background:#EBF5FB;color:#2980B9;margin-right:3px">${r}</span>`).join('')}</td>
+        <td>${(s.roles||[]).map(r => `<span class="status-badge" style="background:#F4F4F4;color:#555;margin-right:3px">${r}</span>`).join('')}</td>
         <td>${escapeHtml(s.contact||'-')}</td>
         <td>${escapeHtml(s.shift||'-')}</td>
         <td class="num">${payCell}</td>
@@ -3877,16 +3910,25 @@ function renderStaff() {
         <td><button class="btn small ghost" onclick="openStaffEdit(${s._idx})">編集</button></td>
       </tr>`;
     }).join('');
-  document.getElementById('staffTable').innerHTML = `<thead><tr><th>名前</th><th>役割</th><th>連絡先</th><th>シフト</th><th class="num">支払金額</th><th>支払状況</th><th></th></tr></thead><tbody>${rows}</tbody>`;
+  document.getElementById('staffTable').innerHTML = `<thead><tr><th>種別</th><th>名前</th><th>役割</th><th>連絡先</th><th>シフト</th><th class="num">支払金額</th><th>支払状況</th><th></th></tr></thead><tbody>${rows}</tbody>`;
 
-  // サマリー
+  // 種別別カウント
+  const all = state.staff || [];
+  const setC = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setC('staffCountCommittee', all.filter(s => (s.type||'実行委員') === '実行委員').length);
+  setC('staffCountVolunteer', all.filter(s => s.type === 'ボランティア').length);
+  setC('staffCountPaid', all.filter(s => s.type === '有償スタッフ').length);
+  setC('staffCountTotal', all.length);
+
+  // 有償スタッフのサマリー
   const summary = document.getElementById('staffPaySummary');
   if (summary) {
-    const total = state.staff.reduce((s,x)=>s+(Number(x.payAmount)||0),0);
-    const paid = state.staff.filter(x=>x.paid).reduce((s,x)=>s+(Number(x.payAmount)||0),0);
+    const paidStaffs = all.filter(s => s.type === '有償スタッフ');
+    const total = paidStaffs.reduce((s,x)=>s+(Number(x.payAmount)||0),0);
+    const paid = paidStaffs.filter(x=>x.paid).reduce((s,x)=>s+(Number(x.payAmount)||0),0);
     const unpaid = total - paid;
     if (total > 0) {
-      summary.innerHTML = `<span style="background:#FEF9E7;color:#B7950B;padding:6px 12px;border-radius:6px;font-weight:600;margin-right:8px">💰 支払総額 ${fmt(total)}</span> <span style="color:#1E8449;font-size:12px">✓ 支払済 ${fmt(paid)}</span> <span style="color:#C0392B;font-size:12px;margin-left:10px">💸 未払 ${fmt(unpaid)}</span>`;
+      summary.innerHTML = `<span style="background:#FEF9E7;color:#B7950B;padding:6px 12px;border-radius:6px;font-weight:600;margin-right:8px">💰 有償スタッフ支払総額 ${fmt(total)}</span> <span style="color:#1E8449;font-size:12px">✓ 支払済 ${fmt(paid)}</span> <span style="color:#C0392B;font-size:12px;margin-left:10px">💸 未払 ${fmt(unpaid)}</span>`;
     } else {
       summary.innerHTML = '';
     }
@@ -3895,11 +3937,16 @@ function renderStaff() {
 
 function openStaffEdit(idx) {
   const isNew = idx === undefined;
-  const s = isNew ? { name:'', roles:[], contact:'', shift:'', note:'', payAmount:0, paid:false, paidDate:'' } : { ...state.staff[idx] };
+  const s = isNew ? { type:'実行委員', name:'', roles:[], contact:'', shift:'', note:'', payAmount:0, paid:false, paidDate:'' } : { ...state.staff[idx] };
+  if (!s.type) s.type = '実行委員';
+  const typeOpts = STAFF_TYPES.map(t => `<option value="${t}" ${s.type===t?'selected':''}>${STAFF_TYPE_META[t].icon} ${t}</option>`).join('');
   showModal(`
     <button class="modal-close" onclick="closeModal()">×</button>
     <h3>${isNew?'スタッフを追加':'スタッフを編集'}</h3>
     <div class="form-row">
+      <label>種別 <span style="color:#D63031">*</span>
+        <select id="st_type" onchange="toggleStaffPaySection()">${typeOpts}</select>
+      </label>
       <label>名前<input id="st_name" value="${escapeHtml(s.name)}"></label>
       <label>連絡先（電話・LINE等）<input id="st_contact" value="${escapeHtml(s.contact||'')}"></label>
     </div>
@@ -3913,8 +3960,8 @@ function openStaffEdit(idx) {
     <div class="form-row">
       <label class="full">シフト・担当範囲<input id="st_shift" value="${escapeHtml(s.shift||'')}" placeholder="例：1日目10-15時、2日目終日"></label>
     </div>
-    <div style="background:#FEF9E7;border:1px solid #F5E6A8;padding:12px 14px;border-radius:8px;margin:10px 0">
-      <div style="font-size:13px;font-weight:700;color:#B7950B;margin-bottom:8px">💰 スタッフへの支払い</div>
+    <div id="st_paySection" style="background:#FEF9E7;border:1px solid #F5E6A8;padding:12px 14px;border-radius:8px;margin:10px 0">
+      <div style="font-size:13px;font-weight:700;color:#B7950B;margin-bottom:8px">💰 有償スタッフへの支払い</div>
       <div class="form-row">
         <label>支払金額（円）<input type="number" id="st_payAmount" value="${s.payAmount||0}" placeholder="例：10000"></label>
         <label>支払状況
@@ -3934,18 +3981,30 @@ function openStaffEdit(idx) {
   `);
   const paidEl = document.getElementById('st_paid');
   if (paidEl) paidEl.value = s.paid ? 'true' : 'false';
+  toggleStaffPaySection();
 }
+
+function toggleStaffPaySection() {
+  const type = document.getElementById('st_type')?.value;
+  const section = document.getElementById('st_paySection');
+  if (section) section.style.display = (type === '有償スタッフ') ? '' : 'none';
+}
+
 function saveStaff(idx) {
-  const roles = Array.from(document.querySelectorAll('#modalContent input[type=checkbox]:checked')).map(c => c.value);
+  // 役割チェックボックスだけ拾う（他のcheckboxと区別するため親要素で絞る）
+  const rolesDiv = document.querySelector('#st_name')?.closest('#modalContent');
+  const roles = Array.from(document.querySelectorAll('#modalContent .form-row input[type=checkbox]')).filter(c => c.checked).map(c => c.value);
+  const type = document.getElementById('st_type').value;
   const s = {
+    type,
     name: document.getElementById('st_name').value.trim(),
     contact: document.getElementById('st_contact').value.trim(),
     roles,
     shift: document.getElementById('st_shift').value.trim(),
     note: document.getElementById('st_note').value,
-    payAmount: Number(document.getElementById('st_payAmount').value) || 0,
-    paid: document.getElementById('st_paid').value === 'true',
-    paidDate: document.getElementById('st_paidDate').value,
+    payAmount: type === '有償スタッフ' ? (Number(document.getElementById('st_payAmount').value) || 0) : 0,
+    paid: type === '有償スタッフ' ? (document.getElementById('st_paid').value === 'true') : false,
+    paidDate: type === '有償スタッフ' ? document.getElementById('st_paidDate').value : '',
   };
   if (!s.name) { toast('名前を入力してください'); return; }
   if (idx === null) state.staff.push(s);
