@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>金魚祭り 運営管理</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root { color-scheme: light; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -577,7 +578,12 @@ details[open] summary { margin-bottom: 10px; }
 
 <!-- ============ ACCOUNTING ============ -->
 <section class="tab-panel" id="tab-accounting">
-  <h2 class="section-title">会計</h2>
+  <h2 class="section-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">会計
+    <span style="display:flex;gap:6px">
+      <button class="btn small gold" onclick="exportAccountingToExcel()">📊 Excelに書き出し</button>
+      <button class="btn small ghost" onclick="exportAccountingToCsv()">📄 CSVダウンロード</button>
+    </span>
+  </h2>
 
   <div class="cards">
     <div class="card accent"><div class="label">予算（収入）</div><div class="value" id="acIncomeBudget">¥0</div></div>
@@ -2163,6 +2169,188 @@ function renderAccounting() {
   const advSumEl = document.getElementById('advanceSummary');
   if (advSumEl && unpaidTotal > 0) {
     advSumEl.innerHTML = advSumEl.innerHTML + ' <span style="background:#FEF5E7;color:#B7950B;padding:6px 12px;border-radius:6px;font-weight:600;margin-left:8px">💸 未払支出 ' + fmt(unpaidTotal) + '</span>';
+  }
+}
+
+// ============================================================
+//                会計データ エクスポート
+// ============================================================
+function buildAccountingData() {
+  const year = state.year;
+  // 1. サマリー
+  const incomeBudget = state.settings.income.reduce((s, i) => s + (Number(i.budget)||0), 0);
+  const expenseBudget = state.settings.expense.reduce((s, e) => s + (Number(e.budget)||0), 0);
+  const incomeActual = state.settings.income.reduce((s, i) => s + getIncomeActual(i.name), 0);
+  const expenseActual = state.settings.expense.reduce((s, e) => s + getExpenseActual(e.name), 0);
+  const balance = incomeActual - expenseActual;
+  const summary = [
+    ['金魚祭り 会計レポート'],
+    ['年度', year + '年度'],
+    ['作成日', new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })],
+    [],
+    ['区分', '予算', '実績', '達成率/消化率'],
+    ['収入', incomeBudget, incomeActual, incomeBudget>0 ? (incomeActual/incomeBudget*100).toFixed(1)+'%' : '-'],
+    ['支出', expenseBudget, expenseActual, expenseBudget>0 ? (expenseActual/expenseBudget*100).toFixed(1)+'%' : '-'],
+    ['差引（実績）', incomeBudget - expenseBudget, balance, balance>=0?'黒字':'赤字'],
+  ];
+
+  // 2. 収入 予算vs実績
+  const income = [['科目','予算','実績','差額','達成率','備考']];
+  state.settings.income.forEach(i => {
+    const actual = getIncomeActual(i.name);
+    const diff = actual - i.budget;
+    const pct = i.budget>0 ? (actual/i.budget*100).toFixed(1)+'%' : '-';
+    let autoNote = '';
+    if (i.name === '出店料収入') autoNote = '出店データ連動: ¥' + sumBoothFeeCollected().toLocaleString();
+    if (i.name === '売上歩合収入') autoNote = '出店データ連動: ¥' + sumBoothCommissionCollected().toLocaleString();
+    if (i.name === '協賛金収入') autoNote = '協賛データ連動: ¥' + sumSponsorPaid().toLocaleString();
+    income.push([i.name, i.budget, actual, diff, pct, autoNote || (i.note||'')]);
+  });
+  income.push(['【合計】', incomeBudget, incomeActual, incomeActual-incomeBudget, incomeBudget>0?(incomeActual/incomeBudget*100).toFixed(1)+'%':'-', '']);
+
+  // 3. 支出 予算vs実績
+  const expense = [['科目','予算','実績','残額','消化率','備考']];
+  state.settings.expense.forEach(e => {
+    const actual = getExpenseActual(e.name);
+    const diff = e.budget - actual;
+    const pct = e.budget>0 ? (actual/e.budget*100).toFixed(1)+'%' : '-';
+    let autoNote = '';
+    if (e.name === '人件費') autoNote = 'スタッフ支払連動: ¥' + sumStaffPayPaid().toLocaleString();
+    expense.push([e.name, e.budget, actual, diff, pct, autoNote || (e.note||'')]);
+  });
+  expense.push(['【合計】', expenseBudget, expenseActual, expenseBudget-expenseActual, expenseBudget>0?(expenseActual/expenseBudget*100).toFixed(1)+'%':'-', '']);
+
+  // 4. 収入ログ
+  const incomeLog = [['受領日','入金元','科目','金額','受領方法','メモ']];
+  (state.incomeLog||[]).forEach(e => {
+    incomeLog.push([e.date||'', e.source||'', e.category||'', Number(e.amount)||0, e.method||'', e.note||'']);
+  });
+  const incomeLogTotal = (state.incomeLog||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
+  incomeLog.push(['','','合計', incomeLogTotal, '', '']);
+
+  // 5. 支出ログ
+  const expenseLog = [['支払日','支払先','費目','金額','支払方法','支払状況','立替者','精算','メモ']];
+  (state.expenseLog||[]).forEach(e => {
+    expenseLog.push([
+      e.date||'', e.vendor||'', e.category||'',
+      Number(e.amount)||0, e.method||'',
+      (e.paid === false ? '未払' : '支払済'),
+      e.advancedBy||'',
+      e.advancedBy ? (e.reimbursed ? '精算済' : '立替中') : '',
+      e.note||''
+    ]);
+  });
+  const expenseLogTotal = (state.expenseLog||[]).reduce((s,e)=>s+(Number(e.amount)||0),0);
+  expenseLog.push(['','','合計', expenseLogTotal, '', '', '', '', '']);
+
+  // 6. 出店者収支（出店料・歩合明細）
+  const exhibitorDetail = [['ブース','出店名','日数','出店料予定','1日目料支払','2日目料支払','1日目売上','2日目売上','歩合率','1日目歩合','2日目歩合','1日目歩合支払','2日目歩合支払']];
+  (state.exhibitors||[]).filter(b => b && b.name).forEach(b => {
+    const rate = (Number(b.commissionRate)||10)/100;
+    const d1Comm = Math.floor((Number(b.salesDay1)||0)*rate);
+    const d2Comm = Math.floor((Number(b.salesDay2)||0)*rate);
+    exhibitorDetail.push([
+      b.id, b.name, Number(b.days)||0, Number(b.fee)||0,
+      b.day1FeePaid ? '✓' : '', b.day2FeePaid ? '✓' : '',
+      Number(b.salesDay1)||0, Number(b.salesDay2)||0,
+      (rate*100)+'%', d1Comm, d2Comm,
+      b.day1CommissionPaid ? '✓' : '', b.day2CommissionPaid ? '✓' : ''
+    ]);
+  });
+
+  // 7. 協賛明細
+  const sponsorDetail = [['企業名','担当者','プラン','金額','状態','入金日','制作物','制作状況','備考']];
+  (state.sponsors||[]).forEach(s => {
+    sponsorDetail.push([
+      s.company||'', s.contactName||'', s.plan||'',
+      Number(s.amount)||0, s.status||'',
+      s.paymentDate||'', s.productionItems||'', s.productionStatus||'', s.note||''
+    ]);
+  });
+
+  // 8. スタッフ支払
+  const staffDetail = [['名前','役割','シフト','支払金額','支払状況','支払日']];
+  (state.staff||[]).forEach(s => {
+    staffDetail.push([
+      s.name||'', (s.roles||[]).join(','), s.shift||'',
+      Number(s.payAmount)||0,
+      s.paid ? '支払済' : (Number(s.payAmount)>0 ? '未払' : '-'),
+      s.paidDate||''
+    ]);
+  });
+
+  return { summary, income, expense, incomeLog, expenseLog, exhibitorDetail, sponsorDetail, staffDetail, year };
+}
+
+function exportAccountingToExcel() {
+  if (typeof XLSX === 'undefined') { toast('Excel書き出しライブラリが読み込まれていません。ページを再読み込みしてください'); return; }
+  try {
+    const data = buildAccountingData();
+    const wb = XLSX.utils.book_new();
+    const sheets = [
+      { name: 'サマリー', data: data.summary },
+      { name: '収入予算vs実績', data: data.income },
+      { name: '支出予算vs実績', data: data.expense },
+      { name: '収入ログ', data: data.incomeLog },
+      { name: '支出ログ', data: data.expenseLog },
+      { name: '出店者収支', data: data.exhibitorDetail },
+      { name: '協賛明細', data: data.sponsorDetail },
+      { name: 'スタッフ支払', data: data.staffDetail },
+    ];
+    sheets.forEach(s => {
+      const ws = XLSX.utils.aoa_to_sheet(s.data);
+      // 列幅自動調整（簡易）
+      const colWidths = [];
+      s.data.forEach(row => {
+        row.forEach((cell, i) => {
+          const len = String(cell||'').length;
+          if (!colWidths[i] || colWidths[i].wch < len) colWidths[i] = { wch: Math.min(40, Math.max(8, len + 2)) };
+        });
+      });
+      ws['!cols'] = colWidths;
+      XLSX.utils.book_append_sheet(wb, ws, s.name);
+    });
+    const filename = `金魚祭り_会計_${data.year}年度_${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    toast('✅ Excelファイルをダウンロードしました');
+  } catch (e) {
+    console.error(e);
+    toast('書き出しに失敗しました: ' + e.message);
+  }
+}
+
+function exportAccountingToCsv() {
+  try {
+    const data = buildAccountingData();
+    const sections = [
+      ['=== サマリー ==='], ...data.summary, [],
+      ['=== 収入 予算vs実績 ==='], ...data.income, [],
+      ['=== 支出 予算vs実績 ==='], ...data.expense, [],
+      ['=== 収入ログ ==='], ...data.incomeLog, [],
+      ['=== 支出ログ ==='], ...data.expenseLog, [],
+      ['=== 出店者収支 ==='], ...data.exhibitorDetail, [],
+      ['=== 協賛明細 ==='], ...data.sponsorDetail, [],
+      ['=== スタッフ支払 ==='], ...data.staffDetail
+    ];
+    const csvEsc = v => {
+      const s = String(v==null?'':v);
+      if (/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+      return s;
+    };
+    const csv = '﻿' + sections.map(row => row.map(csvEsc).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `金魚祭り_会計_${data.year}年度_${new Date().toISOString().slice(0,10)}.csv`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+    toast('✅ CSVファイルをダウンロードしました');
+  } catch (e) {
+    console.error(e);
+    toast('書き出しに失敗しました: ' + e.message);
   }
 }
 
